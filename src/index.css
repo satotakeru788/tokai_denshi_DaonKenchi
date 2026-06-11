@@ -3,14 +3,15 @@
   --card: #ffffff;
   --ink: #0f172a;
   --muted: #64748b;
-  --line: #e6eaf0;
+  --line: #d7dee8;
   --soft: #f4f6fa;
   --brand: #2563eb;
   --brand-dark: #1d4ed8;
   --brand-soft: #eaf1ff;
   --danger: #e5484d;
-  --shadow-sm: 0 1px 2px rgba(15, 23, 42, 0.04);
-  --shadow: 0 1px 2px rgba(15, 23, 42, 0.04), 0 6px 16px rgba(15, 23, 42, 0.06);
+  --ok: #15803d;
+  --shadow-sm: 0 1px 2px rgba(15, 23, 42, 0.05);
+  --shadow: 0 1px 2px rgba(15, 23, 42, 0.04), 0 6px 16px rgba(15, 23, 42, 0.07);
   font-family: system-ui, "Segoe UI", "Hiragino Kaku Gothic ProN", Meiryo, sans-serif;
   color: var(--ink);
   -webkit-font-smoothing: antialiased;
@@ -89,32 +90,70 @@ body {
   color: var(--brand);
 }
 
-/* モデル選択・入力 */
-.model-select,
-.label-row input {
+/* モデル選択（白地＋はっきりした枠線で背景と区別） */
+.model-select {
   width: 100%;
   padding: 12px 14px;
   border: 1px solid var(--line);
   border-radius: 12px;
   font-size: 14px;
-  background: var(--soft);
+  background: #fff;
   color: var(--ink);
-  transition: border-color 0.15s, box-shadow 0.15s, background 0.15s;
+  box-shadow: var(--shadow-sm);
+  transition: border-color 0.15s, box-shadow 0.15s;
 }
 
-.model-select:focus,
-.label-row input:focus {
+.model-select:focus {
   outline: none;
   border-color: var(--brand);
-  background: #fff;
   box-shadow: 0 0 0 3px var(--brand-soft);
 }
 
-/* 入力行：録音(大) + ファイル選択(小) */
-.input-row {
+/* 実測値入力（kPa単位を常時表示し、数値だけ入力すればよいと分かる形） */
+.kpa-field {
+  flex: 1;
   display: flex;
   align-items: center;
-  gap: 14px;
+  min-width: 0;
+  background: #fff;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  box-shadow: var(--shadow-sm);
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+
+.kpa-field:focus-within {
+  border-color: var(--brand);
+  box-shadow: 0 0 0 3px var(--brand-soft);
+}
+
+.kpa-field input {
+  flex: 1;
+  min-width: 0;
+  border: none;
+  background: transparent;
+  padding: 12px 6px 12px 14px;
+  font-size: 14px;
+  color: var(--ink);
+}
+
+.kpa-field input:focus {
+  outline: none;
+}
+
+.kpa-unit {
+  padding: 0 14px 0 4px;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--muted);
+  user-select: none;
+}
+
+/* 入力行：録音(大) + ファイル選択(サブのボタン) */
+.input-row {
+  display: flex;
+  align-items: stretch;
+  gap: 12px;
 }
 
 .rec-btn {
@@ -146,24 +185,61 @@ body {
   color: #fff;
 }
 
+/* ファイル選択：明確に「ボタン」と分かる見た目（枠＋影） */
 .file-link {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 16px;
   font-size: 13px;
-  color: var(--muted);
+  font-weight: 600;
+  color: var(--ink);
+  background: #fff;
+  border: 1px solid var(--line);
+  border-radius: 12px;
   cursor: pointer;
   white-space: nowrap;
-  font-weight: 600;
-  transition: color 0.15s;
+  box-shadow: var(--shadow-sm);
+  transition: border-color 0.15s, color 0.15s, background 0.15s;
 }
 
 .file-link:hover {
+  border-color: var(--brand);
   color: var(--brand);
+  background: var(--brand-soft);
 }
 
-.audio-label {
-  font-size: 12px;
-  color: var(--muted);
+/* 入力状態チップ（録音中 / 録音完了 / ファイル選択済み） */
+.status-chip {
+  align-self: center;
+  font-size: 12.5px;
+  font-weight: 700;
+  padding: 7px 14px;
+  border-radius: 999px;
   text-align: center;
-  margin-top: -4px;
+}
+
+.status-chip.ok {
+  background: #e8f7ee;
+  color: var(--ok);
+  border: 1px solid #b7e3c8;
+}
+
+.status-chip.rec {
+  background: #fdecec;
+  color: var(--danger);
+  border: 1px solid #f6c4c6;
+  animation: pulse 1.2s ease-in-out infinite;
+}
+
+@keyframes pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.55;
+  }
 }
 
 .estimate-btn {
@@ -199,6 +275,7 @@ body {
 /* 推定結果ボックス */
 .result-box {
   background: var(--card);
+  border: 1px solid var(--line);
   border-radius: 18px;
   padding: 18px;
   text-align: center;
@@ -247,6 +324,7 @@ body {
   border-radius: 12px;
   cursor: pointer;
   white-space: nowrap;
+  box-shadow: var(--shadow-sm);
   transition: border-color 0.15s, color 0.15s;
 }
 
@@ -260,7 +338,7 @@ body {
   cursor: not-allowed;
 }
 
-/* ファイル：3モード切替（セグメントコントロール） */
+/* ファイル：3モード切替（白地カード＋選択中は青で明確に） */
 .file-modes {
   display: flex;
   flex-direction: column;
@@ -270,9 +348,11 @@ body {
 .mode-toggle {
   display: flex;
   gap: 4px;
-  background: var(--soft);
+  background: #fff;
+  border: 1px solid var(--line);
   border-radius: 12px;
   padding: 4px;
+  box-shadow: var(--shadow-sm);
 }
 
 .mode-toggle button {
@@ -286,17 +366,17 @@ body {
   padding: 9px 4px;
   border-radius: 9px;
   cursor: pointer;
-  transition: background 0.15s, color 0.15s, box-shadow 0.15s;
+  transition: background 0.15s, color 0.15s;
 }
 
 .mode-toggle button:hover:not(.on) {
   color: var(--ink);
+  background: var(--soft);
 }
 
 .mode-toggle button.on {
-  background: #fff;
-  color: var(--brand);
-  box-shadow: var(--shadow-sm);
+  background: var(--brand);
+  color: #fff;
 }
 
 .waveform {

@@ -53,14 +53,11 @@ function App({ signOut, username }: AppProps) {
   const perHit = result?.perHitKpaCal ?? result?.perHitKpa ?? [];
   let shownValue: number | null = null;
   let shownSub = "";
-  if (recording) {
-    shownSub = "録音中… タイヤを1回はっきり叩いてください";
-  } else if (loading) {
+  if (loading) {
     shownSub = "推定中…";
   } else if (result) {
     if (source === "record") {
       shownValue = result.pressureKpa;
-      shownSub = "録音から推定";
     } else if (mode === "all") {
       shownValue = result.pressureKpa;
       shownSub = `ファイル全${result.hitsUsed}打の平均`;
@@ -69,7 +66,7 @@ function App({ signOut, username }: AppProps) {
       shownSub = "1打目の推定";
     } else {
       shownValue = perHit[picked] ?? null;
-      shownSub = `${picked + 1}打目（波形から選択）`;
+      shownSub = `${picked + 1}打目`;
     }
   }
 
@@ -211,7 +208,13 @@ function App({ signOut, username }: AppProps) {
           <input type="file" accept="audio/*" onChange={onPickFile} hidden />
         </label>
       </div>
-      <div className="audio-label">{audioLabel ? `選択中: ${audioLabel}` : "録音は1回叩けば推定できます"}</div>
+      {recording ? (
+        <div className="status-chip rec">● 録音中… タイヤを1回はっきり叩いてください</div>
+      ) : audioBlob && source === "record" ? (
+        <div className="status-chip ok">✓ 録音完了</div>
+      ) : audioBlob && source === "file" ? (
+        <div className="status-chip ok">✓ ファイル選択済み: {audioLabel}</div>
+      ) : null}
 
       {/* 推定ボタン */}
       <button
@@ -224,33 +227,7 @@ function App({ signOut, username }: AppProps) {
 
       {error && <div className="error">{error}</div>}
 
-      {/* 推定結果ボックス（推定ボタンの下に配置・常時表示） */}
-      <div className="result-box">
-        <div className={shownValue != null ? "pressure" : "pressure empty"}>
-          {shownValue != null ? shownValue : "—"}
-          <span className="unit"> kPa</span>
-        </div>
-        {shownSub && <div className="result-sub">{shownSub}</div>}
-      </div>
-
-      {/* 実測値の登録（結果ボックスの下・再学習用） */}
-      {result && shownValue != null && (
-        <div className="label-row">
-          <input
-            type="number"
-            inputMode="decimal"
-            placeholder="実測値 kPa"
-            value={actualKpa}
-            onChange={(e) => setActualKpa(e.target.value)}
-          />
-          <button onClick={onSaveLabel} disabled={labelSaving || labelSaved}>
-            {labelSaved ? "保存済 ✓" : labelSaving ? "保存中…" : "保存"}
-          </button>
-        </div>
-      )}
-      {labelError && <div className="error">{labelError}</div>}
-
-      {/* ファイルの場合：3種類の推定（1打音 / 全打音 / 波形から選択） */}
+      {/* ファイルの場合：3種類の推定モード（結果ボックスの上に配置） */}
       {result && source === "file" && (
         <div className="file-modes">
           <div className="mode-toggle">
@@ -275,6 +252,35 @@ function App({ signOut, username }: AppProps) {
           )}
         </div>
       )}
+
+      {/* 推定結果ボックス（常時表示） */}
+      <div className="result-box">
+        <div className={shownValue != null ? "pressure" : "pressure empty"}>
+          {shownValue != null ? shownValue : "—"}
+          <span className="unit"> kPa</span>
+        </div>
+        {shownSub && <div className="result-sub">{shownSub}</div>}
+      </div>
+
+      {/* 実測値の登録（結果ボックスの下・再学習用） */}
+      {result && shownValue != null && (
+        <div className="label-row">
+          <div className="kpa-field">
+            <input
+              type="number"
+              inputMode="decimal"
+              placeholder="実測値（例: 240）"
+              value={actualKpa}
+              onChange={(e) => setActualKpa(e.target.value)}
+            />
+            <span className="kpa-unit">kPa</span>
+          </div>
+          <button onClick={onSaveLabel} disabled={labelSaving || labelSaved}>
+            {labelSaved ? "保存済 ✓" : labelSaving ? "保存中…" : "保存"}
+          </button>
+        </div>
+      )}
+      {labelError && <div className="error">{labelError}</div>}
     </div>
   );
 }
