@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { type ChangeEvent, useEffect, useRef, useState } from "react";
 import {
   estimatePressure,
   loadModels,
@@ -6,31 +6,35 @@ import {
   type InferenceResult,
   type ModelInfo,
 } from "./inference";
+import { Waveform } from "./Waveform";
 
 interface AppProps {
   signOut?: () => void;
   username?: string;
 }
 
+type Source = "record" | "file" | null;
+type FileMode = "single" | "all" | "pick";
+
 function App({ signOut, username }: AppProps) {
-  // --- モデル一覧 ---
   const [models, setModels] = useState<ModelInfo[]>([]);
   const [modelId, setModelId] = useState("");
   const [modelsError, setModelsError] = useState("");
 
-  // --- 音声 ---
+  const [source, setSource] = useState<Source>(null);
   const [audioBlob, setAudioBlob] = useState<Blob | null>(null);
   const [audioLabel, setAudioLabel] = useState("");
   const [recording, setRecording] = useState(false);
   const recRef = useRef<MediaRecorder | null>(null);
   const chunksRef = useRef<Blob[]>([]);
 
-  // --- 推定 ---
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [result, setResult] = useState<InferenceResult | null>(null);
 
-  // --- 再学習ラベル ---
+  const [mode, setMode] = useState<FileMode>("all");
+  const [picked, setPicked] = useState(0);
+
   const [actualKpa, setActualKpa] = useState("");
   const [labelSaving, setLabelSaving] = useState(false);
   const [labelSaved, setLabelSaved] = useState(false);
@@ -45,6 +49,40 @@ function App({ signOut, username }: AppProps) {
       .catch((e) => setModelsError(e instanceof Error ? e.message : String(e)));
   }, []);
 
+  // --- 表示する値（結果ボックスは常時表示、推定後に値が入る） ---
+  const perHit = result?.perHitKpaCal ?? result?.perHitKpa ?? [];
+  let shownValue: number | null = null;
+  let shownSub = "";
+  if (recording) {
+    shownSub = "録音中… タイヤを1回はっきり叩いてください";
+  } else if (loading) {
+    shownSub = "推定中…";
+  } else if (result) {
+    if (source === "record") {
+      shownValue = result.pressureKpa;
+      shownSub = "録音から推定";
+    } else if (mode === "all") {
+      shownValue = result.pressureKpa;
+      shownSub = `ファイル全${result.hitsUsed}打の平均`;
+    } else if (mode === "single") {
+      shownValue = perHit[0] ?? result.pressureKpa;
+      shownSub = "1打目の推定";
+    } else {
+      shownValue = perHit[picked] ?? null;
+      shownSub = `${picked + 1}打目（波形から選択）`;
+    }
+  }
+
+  function resetForNewInput() {
+    setResult(null);
+    setError("");
+    setLabelSaved(false);
+    setLabelError("");
+    setActualKpa("");
+    setPicked(0);
+    setMode("all");
+  }
+
   async function startRec() {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
@@ -54,15 +92,15 @@ function App({ signOut, username }: AppProps) {
         if (e.data.size) chunksRef.current.push(e.data);
       };
       rec.onstop = () => {
-        const type = rec.mimeType || "audio/webm";
-        setAudioBlob(new Blob(chunksRef.current, { type }));
+        setAudioBlob(new Blob(chunksRef.current, { type: rec.mimeType || "audio/webm" }));
+        setSource("record");
         setAudioLabel("録音した音声");
         stream.getTracks().forEach((t) => t.stop());
       };
       rec.start();
       recRef.current = rec;
       setRecording(true);
-      resetResult();
+      resetForNewInput();
     } catch {
       setError("マイクにアクセスできませんでした。ブラウザの権限を確認してください。");
     }
@@ -73,21 +111,14 @@ function App({ signOut, username }: AppProps) {
     setRecording(false);
   }
 
-  function onPickFile(e: React.ChangeEvent<HTMLInputElement>) {
+  function onPickFile(e: ChangeEvent<HTMLInputElement>) {
     const f = e.target.files?.[0];
     if (f) {
       setAudioBlob(f);
+      setSource("file");
       setAudioLabel(f.name);
-      resetResult();
+      resetForNewInput();
     }
-  }
-
-  function resetResult() {
-    setResult(null);
-    setError("");
-    setLabelSaved(false);
-    setLabelError("");
-    setActualKpa("");
   }
 
   async function onEstimate() {
@@ -99,6 +130,8 @@ function App({ signOut, username }: AppProps) {
     try {
       const r = await estimatePressure(audioBlob, modelId);
       setResult(r);
+      setPicked(0);
+      setMode("all");
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
     } finally {
@@ -121,7 +154,7 @@ function App({ signOut, username }: AppProps) {
         resultKey: result.resultKey,
         id: result.id,
         modelId: result.modelId,
-        estimatedKpa: result.pressureKpa,
+        estimatedKpa: shownValue,
         actualKpa: kpa,
       });
       setLabelSaved(true);
@@ -134,11 +167,8 @@ function App({ signOut, username }: AppProps) {
 
   return (
     <div className="app">
-      <header className="app-header">
-        <div>
-          <h1>DaonKenchi</h1>
-          <p className="subtitle">タイヤ打音から空気圧を推定</p>
-        </div>
+      <header className="topbar">
+        <h1>打音検知</h1>
         <div className="user-box">
           {username && <span className="user">{username}</span>}
           <button className="link" onClick={signOut}>
@@ -147,119 +177,104 @@ function App({ signOut, username }: AppProps) {
         </div>
       </header>
 
-      <main className="card">
-        {/* 1. 音声入力 */}
-        <section>
-          <h2>1. タイヤ打音を入力</h2>
-          <div className="row">
-            {recording ? (
-              <button className="btn danger" onClick={stopRec}>
-                ■ 録音停止
-              </button>
-            ) : (
-              <button className="btn" onClick={startRec} disabled={loading}>
-                ● 録音開始
-              </button>
-            )}
-            <label className="btn ghost file">
-              ファイル選択
-              <input type="file" accept="audio/*" onChange={onPickFile} hidden />
-            </label>
-          </div>
-          {audioLabel && <p className="hint">選択中: {audioLabel}</p>}
-          <p className="hint">タイヤを数回（3回以上）はっきり叩いた音を入力してください。</p>
-        </section>
+      {/* モデル選択 */}
+      {modelsError ? (
+        <div className="error">モデル一覧の取得に失敗: {modelsError}</div>
+      ) : (
+        <select
+          className="model-select"
+          value={modelId}
+          onChange={(e) => setModelId(e.target.value)}
+          disabled={loading}
+        >
+          {models.map((m) => (
+            <option key={m.id} value={m.id}>
+              {m.name}
+            </option>
+          ))}
+        </select>
+      )}
 
-        {/* 2. モデル選択 */}
-        <section>
-          <h2>2. モデルを選択</h2>
-          {modelsError ? (
-            <p className="error">モデル一覧の取得に失敗しました: {modelsError}</p>
-          ) : (
-            <select value={modelId} onChange={(e) => setModelId(e.target.value)} disabled={loading}>
-              {models.map((m) => (
-                <option key={m.id} value={m.id}>
-                  {m.name}
-                </option>
-              ))}
-            </select>
-          )}
-          {models.find((m) => m.id === modelId)?.desc && (
-            <p className="hint">{models.find((m) => m.id === modelId)?.desc}</p>
-          )}
-        </section>
-
-        {/* 3. 推定 */}
-        <section>
-          <button className="btn primary wide" onClick={onEstimate} disabled={!audioBlob || !modelId || loading}>
-            {loading ? "推定中…" : "空気圧を推定する"}
+      {/* 入力：録音は大きく、ファイル選択は小さくサブ的に */}
+      <div className="input-row">
+        {recording ? (
+          <button className="rec-btn recording" onClick={stopRec}>
+            ■ 録音を停止
           </button>
-          {error && <p className="error">{error}</p>}
-        </section>
-
-        {/* 結果 */}
-        {result && (
-          <section className="result">
-            <h2>推定結果</h2>
-            <div className="pressure">
-              {result.pressureKpa}
-              <span className="unit"> kPa</span>
-            </div>
-            <dl className="meta">
-              <div>
-                <dt>使用モデル</dt>
-                <dd>{result.modelName ?? result.modelId}</dd>
-              </div>
-              <div>
-                <dt>使用打数</dt>
-                <dd>{result.hitsUsed} 打</dd>
-              </div>
-              {result.pressureRawKpa != null && (
-                <div>
-                  <dt>校正前</dt>
-                  <dd>{result.pressureRawKpa} kPa</dd>
-                </div>
-              )}
-              <div>
-                <dt>校正</dt>
-                <dd>{result.calibrated ? "あり" : "なし"}</dd>
-              </div>
-              {result.durationSec != null && (
-                <div>
-                  <dt>解析長</dt>
-                  <dd>{result.durationSec} 秒</dd>
-                </div>
-              )}
-            </dl>
-            {result.perHitKpa?.length > 0 && (
-              <p className="hint">各打: {result.perHitKpa.join(" / ")} kPa</p>
-            )}
-
-            {/* 再学習フォーム */}
-            <div className="relearn">
-              <h3>実測値の登録（再学習用・任意）</h3>
-              <div className="form-grid">
-                <label className="full">
-                  実測空気圧 [kPa]
-                  <input
-                    type="number"
-                    inputMode="decimal"
-                    value={actualKpa}
-                    onChange={(e) => setActualKpa(e.target.value)}
-                    placeholder="例: 240"
-                  />
-                </label>
-              </div>
-              <button className="btn" onClick={onSaveLabel} disabled={labelSaving || labelSaved}>
-                {labelSaved ? "保存しました ✓" : labelSaving ? "保存中…" : "実測値を保存"}
-              </button>
-              {labelError && <p className="error">{labelError}</p>}
-            </div>
-          </section>
+        ) : (
+          <button className="rec-btn" onClick={startRec} disabled={loading}>
+            ● 録音する
+          </button>
         )}
-      </main>
+        <label className="file-link">
+          ファイル選択
+          <input type="file" accept="audio/*" onChange={onPickFile} hidden />
+        </label>
+      </div>
+      <div className="audio-label">{audioLabel ? `選択中: ${audioLabel}` : "録音は1回叩けば推定できます"}</div>
 
-      <footer className="app-footer">DaonKenchi MVP — 試用版</footer>
+      {/* 推定ボタン */}
+      <button
+        className="estimate-btn"
+        onClick={onEstimate}
+        disabled={!audioBlob || !modelId || loading}
+      >
+        {loading ? "推定中…" : "空気圧を推定する"}
+      </button>
+
+      {error && <div className="error">{error}</div>}
+
+      {/* 推定結果ボックス（推定ボタンの下に配置・常時表示） */}
+      <div className="result-box">
+        <div className={shownValue != null ? "pressure" : "pressure empty"}>
+          {shownValue != null ? shownValue : "—"}
+          <span className="unit"> kPa</span>
+        </div>
+        {shownSub && <div className="result-sub">{shownSub}</div>}
+      </div>
+
+      {/* 実測値の登録（結果ボックスの下・再学習用） */}
+      {result && shownValue != null && (
+        <div className="label-row">
+          <input
+            type="number"
+            inputMode="decimal"
+            placeholder="実測値 kPa"
+            value={actualKpa}
+            onChange={(e) => setActualKpa(e.target.value)}
+          />
+          <button onClick={onSaveLabel} disabled={labelSaving || labelSaved}>
+            {labelSaved ? "保存済 ✓" : labelSaving ? "保存中…" : "保存"}
+          </button>
+        </div>
+      )}
+      {labelError && <div className="error">{labelError}</div>}
+
+      {/* ファイルの場合：3種類の推定（1打音 / 全打音 / 波形から選択） */}
+      {result && source === "file" && (
+        <div className="file-modes">
+          <div className="mode-toggle">
+            <button className={mode === "single" ? "on" : ""} onClick={() => setMode("single")}>
+              1打音
+            </button>
+            <button className={mode === "all" ? "on" : ""} onClick={() => setMode("all")}>
+              全打音
+            </button>
+            <button className={mode === "pick" ? "on" : ""} onClick={() => setMode("pick")}>
+              波形から選択
+            </button>
+          </div>
+          {mode === "pick" && result.samples && (
+            <Waveform
+              samples={result.samples}
+              sampleRate={result.sampleRate ?? 22050}
+              peakSeconds={result.peakSeconds ?? []}
+              picked={picked}
+              onPick={setPicked}
+            />
+          )}
+        </div>
+      )}
     </div>
   );
 }

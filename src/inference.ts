@@ -8,10 +8,8 @@ const INFERENCE_URL: string = custom.inferenceUrl ?? '';
 const REGION: string = custom.inferenceRegion ?? 'ap-northeast-1';
 
 const TARGET_SR = 22050;
-// 解析対象は先頭 MAX_DURATION_SEC 秒に制限（打音は数十秒で十分な打数が得られる）。
-// 音声本体は S3 経由で渡すため Function URL の 6MB 制限は受けないが、
-// アップロード/推論時間を抑えるため上限は維持する。
-const MAX_DURATION_SEC = 90;
+// 音声は S3 経由で Lambda に渡すため Function URL の 6MB 制限は受けない。
+// ファイル全体（全打音）を解析対象にする（長さの上限は設けない）。
 
 export interface ModelInfo {
   id: string;
@@ -45,6 +43,9 @@ export interface InferenceResult {
   id: string;
   createdAt?: string;
   error?: string;
+  /** 解析に使った 22050Hz モノラル波形（波形表示・打音選択用） */
+  samples?: Float32Array;
+  sampleRate?: number;
 }
 
 // ---------------------------------------------------------------------------
@@ -69,9 +70,7 @@ async function decodeToMono(blob: Blob): Promise<Float32Array> {
   src.connect(offline.destination);
   src.start();
   const rendered = await offline.startRendering();
-  const data = rendered.getChannelData(0);
-  const maxSamples = MAX_DURATION_SEC * TARGET_SR;
-  return data.length > maxSamples ? data.slice(0, maxSamples) : data;
+  return rendered.getChannelData(0);
 }
 
 function encodeWav(samples: Float32Array, sampleRate: number): Uint8Array<ArrayBuffer> {
@@ -166,7 +165,7 @@ export async function estimatePressure(audio: Blob, modelId: string): Promise<In
 
   const mono = await decodeToMono(audio);
   if (mono.length < TARGET_SR * 0.2) {
-    throw new Error('音声が短すぎます。数回叩いた音を録音してください。');
+    throw new Error('音声が短すぎます。タイヤを叩いた音を録音してください。');
   }
   const wav = encodeWav(mono, TARGET_SR);
 
@@ -205,7 +204,7 @@ export async function estimatePressure(audio: Blob, modelId: string): Promise<In
   const data = (await res.json().catch(() => ({}))) as Partial<InferenceResult> & { error?: string };
   if (!res.ok || data.pressureKpa == null) {
     if (data.error === 'no_hits_detected') {
-      throw new Error('打音を検出できませんでした。タイヤを数回はっきり叩いて録音してください。');
+      throw new Error('打音が検出できませんでした。タイヤをはっきり叩いて録音してください。');
     }
     throw new Error(data.error ? `推定エラー: ${data.error}` : '推定に失敗しました。');
   }
@@ -214,5 +213,7 @@ export async function estimatePressure(audio: Blob, modelId: string): Promise<In
     audioKey: data.audioKey ?? audioKey,
     id: data.id ?? id,
     isMock: false,
+    samples: mono,
+    sampleRate: TARGET_SR,
   };
 }
