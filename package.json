@@ -1,0 +1,49 @@
+{
+  "name": "daonkenti-mvp",
+  "private": true,
+  "version": "0.1.0",
+  "description": "タイヤ打音の音声から空気圧を推定する MVP アプリ（認証 + S3保存 + モデル切替 + 再学習データ蓄積）",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc && vite build",
+    "lint": "eslint . --ext ts,tsx --report-unused-disable-directives --max-warnings 0",
+    "preview": "vite preview",
+    "sandbox": "ampx sandbox --profile daonkenti-dev",
+    "sandbox:once": "ampx sandbox --once --profile daonkenti-dev",
+    "seed:models": "python tools/seed_models.py"
+  },
+  "dependencies": {
+    "@aws-amplify/ui-react": "^6.13.2",
+    "aws-amplify": "^6.17.0",
+    "aws4fetch": "^1.0.20",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1"
+  },
+  "engines": {
+    "node": ">= 20.20.0",
+    "npm": ">= 10.8.0"
+  },
+  "devDependencies": {
+    "@aws-amplify/backend": "^1.23.0",
+    "@aws-amplify/backend-cli": "^1.8.3",
+    "@eslint/compat": "^2.0.1",
+    "@eslint/eslintrc": "^3.3.3",
+    "@eslint/js": "^9.39.2",
+    "@types/react": "^18.3.27",
+    "@types/react-dom": "^18.3.7",
+    "@typescript-eslint/eslint-plugin": "^8.53.0",
+    "@typescript-eslint/parser": "^8.53.0",
+    "@vitejs/plugin-react": "^5.1.2",
+    "aws-cdk-lib": "^2.244.0",
+    "constructs": "^10.6.0",
+    "esbuild": "^0.28.0",
+    "eslint": "^9.39.2",
+    "eslint-plugin-react-hooks": "^7.0.1",
+    "eslint-plugin-react-refresh": "^0.4.26",
+    "globals": "^17.0.0",
+    "tsx": "^4.22.4",
+    "typescript": "^5.9.3",
+    "vite": "^7.3.1"
+  }
+}

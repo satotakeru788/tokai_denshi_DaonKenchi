@@ -1,0 +1,20 @@
+{
+  "version": 1,
+  "default": "exp3v2-cal",
+  "models": [
+    {
+      "id": "exp3v2-cal",
+      "name": "exp3_v2（校正あり）",
+      "desc": "3シード(s42/s123/s456)アンサンブル + 録音単位の等張校正カーブ適用",
+      "path": "exp3v2",
+      "calibrated": true
+    },
+    {
+      "id": "exp3v2-raw",
+      "name": "exp3_v2（校正なし）",
+      "desc": "同一アンサンブルの生出力（校正カーブ不適用・比較用）",
+      "path": "exp3v2",
+      "calibrated": false
+    }
+  ]
+}
