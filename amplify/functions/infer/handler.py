@@ -100,6 +100,15 @@ def _resp(status: int, body: dict):
     }
 
 
+# SnapStart: preload the default model's ONNX session at init so it lands in the
+# snapshot — the first request then skips the S3 download + session build.
+# Non-fatal: if the manifest/model isn't reachable at init, fall back to lazy load.
+try:
+    _get_session(_resolve_model(_load_manifest(), None)["path"])
+except Exception:  # noqa: BLE001
+    pass
+
+
 def handler(event, context):
     try:
         raw = event.get("body") or ""

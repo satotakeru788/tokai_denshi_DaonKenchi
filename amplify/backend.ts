@@ -39,12 +39,22 @@ const inferFn = new lambda.Function(inferStack, 'InferFn', {
     BUCKET_NAME: bucket.bucketName,
   },
   description: 'Estimate tire pressure (kPa) from a hammer-strike WAV stored in S3',
+  // SnapStart restores a pre-initialized snapshot instead of cold-importing
+  // numpy/scipy/onnxruntime (~4s) on every cold start — cuts cold latency.
+  snapStart: lambda.SnapStartConf.ON_PUBLISHED_VERSIONS,
 });
 
 // The function reads audio + models from the bucket and writes results back.
 bucket.grantReadWrite(inferFn);
 
-const inferUrl = inferFn.addFunctionUrl({
+// SnapStart applies to PUBLISHED versions, and a Function URL can attach only to
+// $LATEST or an alias — so expose the URL via an alias on the current version.
+const liveAlias = new lambda.Alias(inferStack, 'LiveAlias', {
+  aliasName: 'live',
+  version: inferFn.currentVersion,
+});
+
+const inferUrl = liveAlias.addFunctionUrl({
   authType: lambda.FunctionUrlAuthType.AWS_IAM,
   cors: {
     allowedOrigins: ['*'],
@@ -65,7 +75,7 @@ new iam.Policy(inferStack, 'InvokeInferUrlPolicy', {
   statements: [
     new iam.PolicyStatement({
       actions: ['lambda:InvokeFunctionUrl'],
-      resources: [inferFn.functionArn],
+      resources: [liveAlias.functionArn],
       conditions: { StringEquals: { 'lambda:FunctionUrlAuthType': 'AWS_IAM' } },
     }),
   ],
