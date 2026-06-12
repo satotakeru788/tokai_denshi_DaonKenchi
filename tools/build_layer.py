@@ -43,6 +43,12 @@ def build() -> None:
         "--only-binary=:all:",
         "--python-version", PY_VERSION,
         "--implementation", "cp",
+        # Cross-build for the Lambda 3.12 runtime: the wheels selected are cp312,
+        # so the machine running pip can be any version. Old pip (e.g. 23.0.1 on
+        # the Amplify build image = Python 3.10) checks a package's Requires-Python
+        # against the HOST interpreter and would reject numpy 2.4.6 (needs >=3.11).
+        # Skip that host gate — the downloaded cp312 wheels are what matters.
+        "--ignore-requires-python",
     ]
     for p in PLATFORMS:
         cmd += ["--platform", p]
