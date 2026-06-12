@@ -11,9 +11,15 @@ import subprocess
 import sys
 from pathlib import Path
 
-PACKAGES = ["numpy", "scipy", "onnxruntime"]
+# Pinned to the verified-working set (the exact versions the sandbox layer uses).
+# IMPORTANT: target manylinux_2_28 ONLY. Lambda's Python 3.12 runtime is Amazon
+# Linux 2023 (glibc 2.34), so 2_28 wheels load fine. Keeping manylinux2014 made
+# pip backtrack to numpy 2.2.6 (the newest numpy that still ships a 2014 wheel),
+# whose import then breaks once prune() removes the bundled tests/ dirs
+# (Runtime.ImportModuleError: No module named 'numpy._core.tests'). 2.4.6 is fine.
+PACKAGES = ["numpy==2.4.6", "scipy==1.17.1", "onnxruntime==1.26.0"]
 PY_VERSION = "3.12"
-PLATFORMS = ["manylinux2014_x86_64", "manylinux_2_28_x86_64"]
+PLATFORMS = ["manylinux_2_28_x86_64"]
 TARGET = Path("amplify/layers/pydeps/python")
 
 # directories/files to prune to stay under Lambda's 250 MB unzipped limit
