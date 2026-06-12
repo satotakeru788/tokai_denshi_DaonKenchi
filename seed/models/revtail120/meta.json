@@ -1,0 +1,22 @@
+{
+  "n_mels": 96,
+  "n_fft": 1024,
+  "hop": 256,
+  "fmin": 20.0,
+  "fmax": 3000.0,
+  "pre_seconds": 0.01,
+  "post_seconds": 0.12,
+  "target_sr": 22050,
+  "segment_samples": 2646,
+  "crop_mode": "reverb_tail",
+  "spectral_subtraction": false,
+  "num_members": 1,
+  "target_mean_per_member": [
+    236.45372009277344
+  ],
+  "target_std_per_member": [
+    21.985952377319336
+  ],
+  "seed_tag": "revtail120-s42",
+  "note": "ONNX output is already de-normalized kPa per hit; Lambda averages over hits."
+}

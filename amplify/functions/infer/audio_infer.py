@@ -185,9 +185,11 @@ def compute_logmel(wave_arr: np.ndarray, sr: int, n_fft: int, hop: int, n_mels: 
 
 
 # ---------------------------------------------------------------------------
-# End-to-end inference
+# Feature extraction (= the "logmel_v1" preprocessing profile)
 # ---------------------------------------------------------------------------
-def run_inference(wav_bytes: bytes, session, meta: dict) -> dict:
+def extract_features(wav_bytes: bytes, meta: dict) -> dict:
+    """WAV -> per-hit log-mel features. Numerically identical to the original
+    run_inference front half (resample 22050 -> detect peaks -> crop -> log-mel)."""
     sr_target = int(meta["target_sr"])
     n_fft = int(meta["n_fft"])
     hop = int(meta["hop"])
@@ -220,6 +222,19 @@ def run_inference(wav_bytes: bytes, session, meta: dict) -> dict:
         mels.append(compute_logmel(seg, sr_target, n_fft, hop, n_mels, fmin=fmin, fmax=fmax))
         used_peaks.append(int(peak))
 
+    features = np.stack(mels, axis=0)[:, np.newaxis, :, :].astype(np.float32) if mels else None
+    return {
+        "features": features,
+        "peakSeconds": [round(p / sr_target, 3) for p in used_peaks],
+        "durationSec": round(len(mono) / sr_target, 2),
+    }
+
+
+# ---------------------------------------------------------------------------
+# Model run + aggregation (shared by all preprocessing profiles)
+# ---------------------------------------------------------------------------
+def infer_from_features(feats: dict, session, meta: dict) -> dict:
+    """features [N,1,H,W] -> ONNX (per-hit kPa) -> mean over hits + calibration."""
     cal = meta.get("calibration")
     if cal:
         cx = np.asarray(cal["x"], dtype=np.float64)
@@ -228,12 +243,12 @@ def run_inference(wav_bytes: bytes, session, meta: dict) -> dict:
     else:
         apply_cal = lambda v: float(v)
 
-    if not mels:
+    x = feats.get("features")
+    if x is None or len(x) == 0:
         return {"pressureKpa": None, "pressureRawKpa": None, "hitsUsed": 0,
                 "perHitKpa": [], "perHitKpaCal": [], "peakSeconds": [],
                 "calibrated": bool(cal), "isMock": False, "error": "no_hits_detected"}
 
-    x = np.stack(mels, axis=0)[:, np.newaxis, :, :].astype(np.float32)
     in_name = session.get_inputs()[0].name
     out = session.run(None, {in_name: x})[0].reshape(-1)
 
@@ -248,8 +263,15 @@ def run_inference(wav_bytes: bytes, session, meta: dict) -> dict:
         "perHitKpa": per_hit_raw,
         "perHitKpaCal": per_hit_cal,
         "calibrated": bool(cal),
-        "peakSeconds": [round(p / sr_target, 3) for p in used_peaks],
+        "peakSeconds": feats.get("peakSeconds", []),
         "isMock": False,
         "modelTag": meta.get("seed_tag"),
-        "durationSec": round(len(mono) / sr_target, 2),
+        "durationSec": feats.get("durationSec"),
     }
+
+
+# ---------------------------------------------------------------------------
+# End-to-end inference (= extract_features + infer_from_features)
+# ---------------------------------------------------------------------------
+def run_inference(wav_bytes: bytes, session, meta: dict) -> dict:
+    return infer_from_features(extract_features(wav_bytes, meta), session, meta)

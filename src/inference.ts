@@ -1,5 +1,5 @@
 import { fetchAuthSession } from 'aws-amplify/auth';
-import { downloadData, uploadData } from 'aws-amplify/storage';
+import { getUrl, uploadData } from 'aws-amplify/storage';
 import { AwsClient } from 'aws4fetch';
 import outputs from '../amplify_outputs.json';
 
@@ -7,9 +7,11 @@ const custom = (outputs as { custom?: { inferenceUrl?: string; inferenceRegion?:
 const INFERENCE_URL: string = custom.inferenceUrl ?? '';
 const REGION: string = custom.inferenceRegion ?? 'ap-northeast-1';
 
-const TARGET_SR = 22050;
 // 音声は S3 経由で Lambda に渡すため Function URL の 6MB 制限は受けない。
 // ファイル全体（全打音）を解析対象にする（長さの上限は設けない）。
+// 22050Hz への固定ダウンサンプルはやめ、ブラウザのデコードレート
+// （通常 44.1k/48kHz）のまま WAV 化して保存する — リサンプルや特徴量化は
+// モデルごとの前処理プロファイル（Lambda側）が担う。
 
 export interface ModelInfo {
   id: string;
@@ -43,15 +45,15 @@ export interface InferenceResult {
   id: string;
   createdAt?: string;
   error?: string;
-  /** 解析に使った 22050Hz モノラル波形（波形表示・打音選択用） */
+  /** アップロードしたモノラル波形（デコードレートのまま。波形表示・打音選択用） */
   samples?: Float32Array;
   sampleRate?: number;
 }
 
 // ---------------------------------------------------------------------------
-// Audio decode -> 22050Hz mono -> 16-bit PCM WAV  （src/inference.ts より流用）
+// Audio decode -> mono 16-bit PCM WAV（デコードレート維持・リサンプルしない）
 // ---------------------------------------------------------------------------
-async function decodeToMono(blob: Blob): Promise<Float32Array> {
+async function decodeToMono(blob: Blob): Promise<{ samples: Float32Array; sampleRate: number }> {
   const arrayBuf = await blob.arrayBuffer();
   const AC: typeof AudioContext =
     window.AudioContext ??
@@ -63,14 +65,15 @@ async function decodeToMono(blob: Blob): Promise<Float32Array> {
   } finally {
     void ctx.close();
   }
-  const length = Math.max(1, Math.ceil(decoded.duration * TARGET_SR));
-  const offline = new OfflineAudioContext(1, length, TARGET_SR);
+  const sampleRate = decoded.sampleRate;
+  const length = Math.max(1, Math.ceil(decoded.duration * sampleRate));
+  const offline = new OfflineAudioContext(1, length, sampleRate);
   const src = offline.createBufferSource();
   src.buffer = decoded;
   src.connect(offline.destination);
   src.start();
   const rendered = await offline.startRendering();
-  return rendered.getChannelData(0);
+  return { samples: rendered.getChannelData(0), sampleRate };
 }
 
 function encodeWav(samples: Float32Array, sampleRate: number): Uint8Array<ArrayBuffer> {
@@ -119,11 +122,17 @@ function extFromBlob(blob: Blob): string {
 // Storage helpers
 // ---------------------------------------------------------------------------
 
-/** models/manifest.json を Storage から取得（モデル選択プルダウン用）。 */
+/** models/manifest.json を Storage から取得（モデル選択プルダウン用）。
+ * downloadData は「固定URL＋署名ヘッダ」の GET になりブラウザの HTTP
+ * ヒューリスティックキャッシュに当たるため、モデル追加が数時間反映されない
+ * ことがある。毎回変わる署名付きURL＋ cache:no-store で常に最新を取得する。 */
 export async function loadModels(): Promise<ManifestData> {
-  const { body } = await downloadData({ path: 'models/manifest.json' }).result;
-  const text = await body.text();
-  const data = JSON.parse(text) as ManifestData;
+  const { url } = await getUrl({ path: 'models/manifest.json', options: { expiresIn: 60 } });
+  const res = await fetch(url.toString(), { cache: 'no-store' });
+  if (!res.ok) {
+    throw new Error(`manifest取得に失敗しました (HTTP ${res.status})`);
+  }
+  const data = (await res.json()) as ManifestData;
   return { models: data.models ?? [], default: data.default };
 }
 
@@ -163,11 +172,11 @@ export async function estimatePressure(audio: Blob, modelId: string): Promise<In
     throw new Error('ログインセッションが無効です。再ログインしてください。');
   }
 
-  const mono = await decodeToMono(audio);
-  if (mono.length < TARGET_SR * 0.2) {
+  const { samples: mono, sampleRate } = await decodeToMono(audio);
+  if (mono.length < sampleRate * 0.2) {
     throw new Error('音声が短すぎます。タイヤを叩いた音を録音してください。');
   }
-  const wav = encodeWav(mono, TARGET_SR);
+  const wav = encodeWav(mono, sampleRate);
 
   const id = crypto.randomUUID();
   const audioKey = `audio/${identityId}/${id}.wav`;
@@ -214,6 +223,6 @@ export async function estimatePressure(audio: Blob, modelId: string): Promise<In
     id: data.id ?? id,
     isMock: false,
     samples: mono,
-    sampleRate: TARGET_SR,
+    sampleRate,
   };
 }

@@ -7,6 +7,7 @@
       "name": "exp3_v2（校正あり）",
       "desc": "3シード(s42/s123/s456)アンサンブル + 録音単位の等張校正カーブ適用",
       "path": "exp3v2",
+      "preprocess": "logmel_v1",
       "calibrated": true
     },
     {
@@ -14,6 +15,15 @@
       "name": "exp3_v2（校正なし）",
       "desc": "同一アンサンブルの生出力（校正カーブ不適用・比較用）",
       "path": "exp3v2",
+      "preprocess": "logmel_v1",
+      "calibrated": false
+    },
+    {
+      "id": "revtail120-raw",
+      "name": "reverb_tail（校正なし）",
+      "desc": "crop=reverb_tail（打撃後0.12sの残響窓・s42単独）holdout MAE 6.75（dk-pp-crop-revtail-20260604）",
+      "path": "revtail120",
+      "preprocess": "reverb_v1",
       "calibrated": false
     }
   ]

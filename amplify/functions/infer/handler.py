@@ -4,14 +4,17 @@ Flow (MVP, S3-backed):
   request body = {"audioKey": "audio/<entity>/<id>.wav", "modelId": "exp3v2-cal"}
     1. resolve modelId via S3 models/manifest.json  (default = manifest.default)
     2. download the model's ONNX + meta from S3 -> /tmp (cached while warm)
-    3. read the 22050Hz WAV from S3 (audioKey)
-    4. audio_infer.run_inference  (preprocess + ONNX ensemble + optional calibration)
+    3. read the WAV from S3 (audioKey; any sample rate — profiles resample)
+    4. dispatch to the model's preprocessing profile (manifest "preprocess",
+       default logmel_v1) -> features, then ONNX + aggregation (audio_infer)
     5. store the result JSON to results/<entity>/<id>.json  (accumulate for review)
     6. return the result (+ resultKey) in the response for immediate display
 
-Model switching: a manifest entry carries {path, calibrated}. Both demo entries
-point at the same ONNX (models/exp3v2/); `calibrated:false` strips meta.calibration
-so the raw vs. calibrated outputs differ — proving the switch end to end.
+Model switching: a manifest entry carries {path, calibrated, preprocess}. The
+preprocess field selects a preprocessing profile from preprocessors/ so a model
+trained on a different feature pipeline can run with ITS OWN preprocessing —
+adding a profile is a code change (PR + redeploy); adding a model that reuses an
+existing profile stays S3-only. `calibrated:false` strips meta.calibration.
 
 CORS headers are supplied by the Function URL CORS config (see amplify/backend.ts);
 do NOT also set them here or the browser sees duplicate headers and blocks the call.
@@ -26,7 +29,8 @@ from datetime import datetime, timezone
 import boto3
 import onnxruntime as ort
 
-from audio_infer import run_inference
+from audio_infer import infer_from_features
+from preprocessors import DEFAULT_PROFILE, get_profile
 
 _s3 = boto3.client("s3")
 BUCKET = os.environ["BUCKET_NAME"]
@@ -131,10 +135,12 @@ def handler(event, context):
         if not model.get("calibrated", True):
             meta.pop("calibration", None)
 
+        profile = get_profile(model.get("preprocess"))
         wav = _s3.get_object(Bucket=BUCKET, Key=audio_key)["Body"].read()
-        result = run_inference(wav, session, meta)
+        result = infer_from_features(profile.preprocess(wav, meta), session, meta)
 
         # enrich + persist
+        result["preprocess"] = getattr(profile, "PROFILE_ID", DEFAULT_PROFILE)
         result["modelId"] = model["id"]
         result["modelName"] = model.get("name")
         result["audioKey"] = audio_key
