@@ -7,6 +7,7 @@ import {
   type ModelInfo,
 } from "./inference";
 import { Waveform } from "./Waveform";
+import { isDeveloper } from "./userGroups";
 
 interface AppProps {
   signOut?: () => void;
@@ -20,6 +21,7 @@ function App({ signOut, username }: AppProps) {
   const [models, setModels] = useState<ModelInfo[]>([]);
   const [modelId, setModelId] = useState("");
   const [modelsError, setModelsError] = useState("");
+  const [isDev, setIsDev] = useState(false);
 
   const [source, setSource] = useState<Source>(null);
   const [audioBlob, setAudioBlob] = useState<Blob | null>(null);
@@ -41,12 +43,15 @@ function App({ signOut, username }: AppProps) {
   const [labelError, setLabelError] = useState("");
 
   useEffect(() => {
+    // モデル一覧は全ユーザーで取得する(一般ユーザーも default モデルの
+    // modelId をセットしないと推定ボタンが有効にならない)
     loadModels()
       .then((m) => {
         setModels(m.models);
         setModelId(m.default ?? m.models[0]?.id ?? "");
       })
       .catch((e) => setModelsError(e instanceof Error ? e.message : String(e)));
+    isDeveloper().then(setIsDev);
   }, []);
 
   // --- 表示する値（結果ボックスは常時表示、推定後に値が入る） ---
@@ -174,10 +179,12 @@ function App({ signOut, username }: AppProps) {
         </div>
       </header>
 
-      {/* モデル選択 */}
+      {/* モデル選択(developers グループのみ表示。一般ユーザーは manifest の
+          default モデルで推定。エラーは全ユーザーに見せる — 取得失敗時に推定
+          ボタンが無効のまま無言になるのを防ぐ) */}
       {modelsError ? (
         <div className="error">モデル一覧の取得に失敗: {modelsError}</div>
-      ) : (
+      ) : isDev ? (
         <select
           className="model-select"
           value={modelId}
@@ -190,7 +197,7 @@ function App({ signOut, username }: AppProps) {
             </option>
           ))}
         </select>
-      )}
+      ) : null}
 
       {/* 入力：録音は大きく、ファイル選択は小さくサブ的に */}
       <div className="input-row">

@@ -1,5 +1,6 @@
 import { defineBackend } from '@aws-amplify/backend';
-import { Duration } from 'aws-cdk-lib';
+import { Duration, Stack } from 'aws-cdk-lib';
+import * as cognito from 'aws-cdk-lib/aws-cognito';
 import * as iam from 'aws-cdk-lib/aws-iam';
 import * as lambda from 'aws-cdk-lib/aws-lambda';
 import { auth } from './auth/resource';
@@ -17,6 +18,26 @@ import { storage } from './storage/resource';
 const backend = defineBackend({
   auth,
   storage,
+});
+
+// 開発者向け機能(モデル選択UIなど)の表示判定に使う Cognito グループ。
+// フロントの src/userGroups.ts(DEVELOPERS_GROUP)と名前を一致させること。
+//
+// IMPORTANT: defineAuth({ groups: [...] }) は使わない。auth-construct はグループ
+// ごとに「権限ゼロのIAMロール + RoleArn付きグループ」を自動生成し、IdentityPool
+// に無条件設定済みの Token ロールマッピングによって所属ユーザーの一時クレデン
+// シャルがその空ロールへ切り替わる — storage 権限も下の InvokeInferUrlPolicy も
+// authenticated ロールにしか付いていないため、開発者だけ全機能が壊れる。
+// (defineAuth({groups}) へ移行するなら、グループロールへのポリシー複製が必須。)
+// RoleArn なしの素のグループなら IDトークンに cognito:groups が載るだけで、
+// ロール解決は従来どおり authenticated ロールのまま。
+// 配置は auth ネステッドスタック内 = userPoolId が同一スタック内参照になり、
+// スタック間エッジを増やさない(auth を葉に保つ。下の循環コメント参照)。
+const authStack = Stack.of(backend.auth.resources.userPool);
+new cognito.CfnUserPoolGroup(authStack, 'DevelopersUserPoolGroup', {
+  userPoolId: backend.auth.resources.userPool.userPoolId,
+  groupName: 'developers',
+  description: 'モデル選択UIなど開発者向け機能を表示するユーザー',
 });
 
 const inferStack = backend.createStack('infer');
