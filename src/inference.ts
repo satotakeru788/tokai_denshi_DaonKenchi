@@ -226,3 +226,33 @@ export async function estimatePressure(audio: Blob, modelId: string): Promise<In
     sampleRate,
   };
 }
+
+// ---------------------------------------------------------------------------
+// 管理者: 一般ユーザーの代表(既定)モデルを設定（developers グループのみ）
+// ---------------------------------------------------------------------------
+export async function setDefaultModel(modelId: string): Promise<void> {
+  if (!INFERENCE_URL) {
+    throw new Error('推論エンドポイント未設定です（バックエンド未デプロイ）。');
+  }
+  const { credentials, tokens } = await fetchAuthSession();
+  const accessToken = tokens?.accessToken?.toString();
+  if (!credentials || !accessToken) {
+    throw new Error('ログインセッションが無効です。再ログインしてください。');
+  }
+  const aws = new AwsClient({
+    accessKeyId: credentials.accessKeyId,
+    secretAccessKey: credentials.secretAccessKey,
+    sessionToken: credentials.sessionToken,
+    region: REGION,
+    service: 'lambda',
+  });
+  const res = await aws.fetch(INFERENCE_URL, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ action: 'setDefaultModel', modelId, accessToken }),
+  });
+  const data = (await res.json().catch(() => ({}))) as { error?: string };
+  if (!res.ok) {
+    throw new Error(data.error ? `設定エラー: ${data.error}` : '代表モデルの設定に失敗しました。');
+  }
+}

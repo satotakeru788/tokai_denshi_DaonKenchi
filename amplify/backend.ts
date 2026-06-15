@@ -58,6 +58,7 @@ const inferFn = new lambda.Function(inferStack, 'InferFn', {
   timeout: Duration.seconds(60),
   environment: {
     BUCKET_NAME: bucket.bucketName,
+    USER_POOL_ID: backend.auth.resources.userPool.userPoolId,
   },
   description: 'Estimate tire pressure (kPa) from a hammer-strike WAV stored in S3',
   // SnapStart restores a pre-initialized snapshot instead of cold-importing
@@ -67,6 +68,15 @@ const inferFn = new lambda.Function(inferStack, 'InferFn', {
 
 // The function reads audio + models from the bucket and writes results back.
 bucket.grantReadWrite(inferFn);
+
+// Admin action (setDefaultModel): the function authorizes the caller by checking
+// their Cognito group membership before editing models/manifest.json's default.
+inferFn.addToRolePolicy(
+  new iam.PolicyStatement({
+    actions: ['cognito-idp:AdminListGroupsForUser'],
+    resources: [backend.auth.resources.userPool.userPoolArn],
+  }),
+);
 
 // SnapStart applies to PUBLISHED versions, and a Function URL can attach only to
 // $LATEST or an alias — so expose the URL via an alias on the current version.

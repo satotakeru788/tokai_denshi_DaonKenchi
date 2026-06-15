@@ -33,7 +33,10 @@ from audio_infer import infer_from_features
 from preprocessors import DEFAULT_PROFILE, get_profile
 
 _s3 = boto3.client("s3")
+_cognito = boto3.client("cognito-idp")
 BUCKET = os.environ["BUCKET_NAME"]
+USER_POOL_ID = os.environ.get("USER_POOL_ID", "")
+DEVELOPERS_GROUP = "developers"
 
 # warm-container caches
 _SESSIONS: dict[str, tuple] = {}  # model path -> (onnx session, raw meta dict)
@@ -44,6 +47,40 @@ def _load_manifest() -> dict:
     be added by editing the manifest + uploading files, with no redeploy)."""
     obj = _s3.get_object(Bucket=BUCKET, Key="models/manifest.json")
     return json.loads(obj["Body"].read())
+
+
+def _require_developer(access_token: str | None) -> None:
+    """Authorize an admin action: validate the Cognito access token (get_user
+    raises on a bad/expired token) then require 'developers' group membership."""
+    if not access_token:
+        raise PermissionError("missing access token")
+    try:
+        user = _cognito.get_user(AccessToken=access_token)
+    except Exception:  # noqa: BLE001 — invalid/expired token
+        raise PermissionError("invalid token")
+    groups = _cognito.admin_list_groups_for_user(
+        Username=user["Username"], UserPoolId=USER_POOL_ID
+    ).get("Groups", [])
+    if not any(g.get("GroupName") == DEVELOPERS_GROUP for g in groups):
+        raise PermissionError("developer access required")
+
+
+def _set_default_model(model_id: str | None, access_token: str | None) -> dict:
+    """developers-only: set models/manifest.json "default" (the model general
+    users get). Any registered model id may be chosen, not just the caller's."""
+    _require_developer(access_token)
+    manifest = _load_manifest()
+    ids = [m.get("id") for m in manifest.get("models", [])]
+    if model_id not in ids:
+        raise ValueError(f"unknown modelId: {model_id}")
+    manifest["default"] = model_id
+    _s3.put_object(
+        Bucket=BUCKET,
+        Key="models/manifest.json",
+        Body=json.dumps(manifest, ensure_ascii=False).encode("utf-8"),
+        ContentType="application/json",
+    )
+    return {"default": model_id}
 
 
 def _resolve_model(manifest: dict, model_id: str | None) -> dict:
@@ -120,6 +157,13 @@ def handler(event, context):
             import base64
             raw = base64.b64decode(raw).decode("utf-8")
         payload = json.loads(raw) if raw else {}
+
+        # admin action: set the default model for general users (developers only)
+        if payload.get("action") == "setDefaultModel":
+            try:
+                return _resp(200, _set_default_model(payload.get("modelId"), payload.get("accessToken")))
+            except PermissionError as exc:
+                return _resp(403, {"error": str(exc)})
 
         audio_key = payload.get("audioKey")
         if not audio_key:

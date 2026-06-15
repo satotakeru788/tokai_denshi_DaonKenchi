@@ -3,6 +3,7 @@ import {
   estimatePressure,
   loadModels,
   saveLabel,
+  setDefaultModel,
   type InferenceResult,
   type ModelInfo,
 } from "./inference";
@@ -22,6 +23,9 @@ function App({ signOut, username }: AppProps) {
   const [modelId, setModelId] = useState("");
   const [modelsError, setModelsError] = useState("");
   const [isDev, setIsDev] = useState(false);
+  const [defaultModelId, setDefaultModelId] = useState("");
+  const [settingDefault, setSettingDefault] = useState(false);
+  const [defaultMsg, setDefaultMsg] = useState("");
 
   const [source, setSource] = useState<Source>(null);
   const [audioBlob, setAudioBlob] = useState<Blob | null>(null);
@@ -49,6 +53,7 @@ function App({ signOut, username }: AppProps) {
       .then((m) => {
         setModels(m.models);
         setModelId(m.default ?? m.models[0]?.id ?? "");
+        setDefaultModelId(m.default ?? m.models[0]?.id ?? "");
       })
       .catch((e) => setModelsError(e instanceof Error ? e.message : String(e)));
     isDeveloper().then(setIsDev);
@@ -141,6 +146,20 @@ function App({ signOut, username }: AppProps) {
     }
   }
 
+  async function onSetDefault() {
+    if (!defaultModelId) return;
+    setSettingDefault(true);
+    setDefaultMsg("");
+    try {
+      await setDefaultModel(defaultModelId);
+      setDefaultMsg("✓ 代表モデルを更新しました");
+    } catch (e) {
+      setDefaultMsg(e instanceof Error ? e.message : String(e));
+    } finally {
+      setSettingDefault(false);
+    }
+  }
+
   async function onSaveLabel() {
     if (!result) return;
     const kpa = parseFloat(actualKpa);
@@ -198,6 +217,36 @@ function App({ signOut, username }: AppProps) {
           ))}
         </select>
       ) : null}
+
+      {/* 代表モデル設定（developers のみ）。推定用の選択とは独立に、一覧の
+          どのモデルでも一般ユーザーの既定に設定できる。 */}
+      {isDev && !modelsError && (
+        <div className="dev-default">
+          <span className="dev-default-label">一般ユーザーの代表</span>
+          <select
+            value={defaultModelId}
+            onChange={(e) => {
+              setDefaultModelId(e.target.value);
+              setDefaultMsg("");
+            }}
+            disabled={settingDefault}
+          >
+            {models.map((m) => (
+              <option key={m.id} value={m.id}>
+                {m.name}
+              </option>
+            ))}
+          </select>
+          <button onClick={onSetDefault} disabled={settingDefault}>
+            {settingDefault ? "設定中…" : "設定"}
+          </button>
+          {defaultMsg && (
+            <span className={"dev-default-msg" + (defaultMsg.startsWith("✓") ? " ok" : " err")}>
+              {defaultMsg}
+            </span>
+          )}
+        </div>
+      )}
 
       {/* 入力：録音は大きく、ファイル選択は小さくサブ的に */}
       <div className="input-row">

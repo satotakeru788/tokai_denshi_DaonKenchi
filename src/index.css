@@ -109,6 +109,64 @@ body {
   box-shadow: 0 0 0 3px var(--brand-soft);
 }
 
+/* 代表モデル設定（developers のみ） */
+.dev-default {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.dev-default-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--muted);
+  white-space: nowrap;
+}
+
+.dev-default select {
+  flex: 1;
+  min-width: 0;
+  padding: 8px 10px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  font-size: 13px;
+  background: #fff;
+  color: var(--ink);
+}
+
+.dev-default button {
+  appearance: none;
+  border: 1px solid var(--brand);
+  background: var(--brand-soft);
+  color: var(--brand);
+  font-size: 13px;
+  font-weight: 700;
+  padding: 8px 14px;
+  border-radius: 10px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.dev-default button:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.dev-default-msg {
+  flex-basis: 100%;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.dev-default-msg.ok {
+  color: var(--ok);
+}
+
+.dev-default-msg.err {
+  color: var(--danger);
+}
+
 /* 実測値入力（kPa単位を常時表示し、数値だけ入力すればよいと分かる形） */
 .kpa-field {
   flex: 1;
