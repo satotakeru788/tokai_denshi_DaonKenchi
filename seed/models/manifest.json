@@ -25,6 +25,14 @@
       "path": "revtail120",
       "preprocess": "reverb_v1",
       "calibrated": false
+    },
+    {
+      "id": "takao16-hyb",
+      "name": "hybrid_fk（校正なし）",
+      "desc": "hybrid_fk+SWAD 3シードアンサンブル・takao_v1前処理(bandpass50-300+8kHz低域メル)・較正なし。LOSO 1打音93.4%/録音96.4%（旧MelSpectrogramCNN 74.1%から大幅改善）",
+      "path": "takao16hyb",
+      "preprocess": "takao_v1",
+      "calibrated": false
     }
   ]
 }

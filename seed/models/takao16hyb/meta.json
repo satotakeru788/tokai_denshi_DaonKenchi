@@ -1,0 +1,23 @@
+{
+  "config": "c_hybrid_fk_swa",
+  "cfg": {
+    "model": "hybrid_fk",
+    "base": 32,
+    "norm": "foldstd",
+    "conv_norm": "batch",
+    "dropout": 0.3,
+    "wd": 0.001,
+    "epochs": 60,
+    "swa": true,
+    "swa_start_ratio": 0.6,
+    "n_seeds": 3
+  },
+  "input_shape": [
+    1,
+    64,
+    38
+  ],
+  "input_norm": "foldstd",
+  "num_members": 3,
+  "note": "ONNX入力=生log-mel[N,1,64,38], 内部で標準化+de-norm, 出力=per-hit kPa"
+}

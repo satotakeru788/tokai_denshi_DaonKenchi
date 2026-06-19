@@ -16,11 +16,12 @@ manifest.json の各モデルは "preprocess" フィールドでプロファイ�
      ※プロファイル追加はコード変更なので再デプロイが必要。同じプロファイルを
        使うモデルの追加は S3 だけで済む（再デプロイ不要）。
 """
-from . import logmel_v1, reverb_v1
+from . import logmel_v1, reverb_v1, takao_v1
 
 _PROFILES = {
     logmel_v1.PROFILE_ID: logmel_v1,
     reverb_v1.PROFILE_ID: reverb_v1,
+    takao_v1.PROFILE_ID: takao_v1,
 }
 
 DEFAULT_PROFILE = logmel_v1.PROFILE_ID
