@@ -90,6 +90,11 @@ body {
   color: var(--brand);
 }
 
+/* 管理者: 一般ユーザー / 管理者 の画面切り替え（横並びセグメント） */
+.view-switch {
+  flex: none;
+}
+
 /* モデル選択（白地＋はっきりした枠線で背景と区別） */
 .model-select {
   width: 100%;
@@ -109,7 +114,31 @@ body {
   box-shadow: 0 0 0 3px var(--brand-soft);
 }
 
+/* タイヤサイズ選択（全ユーザー） */
+.size-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.size-label {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--ink);
+  white-space: nowrap;
+}
+
+.size-toggle {
+  flex: 1;
+}
+
 /* 代表モデル設定（developers のみ） */
+.dev-defaults {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
 .dev-default {
   display: flex;
   align-items: center;

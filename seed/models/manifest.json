@@ -1,37 +1,54 @@
 {
   "version": 1,
-  "default": "exp3v2-cal",
+  "default": "takao16-hyb",
+  "defaults": {
+    "16": "takao16-hyb",
+    "15": "takao15-hyb"
+  },
   "models": [
     {
+      "id": "takao16-hyb",
+      "name": "16インチ hybrid_fk",
+      "desc": "hybrid_fk+SWAD 3シードアンサンブル・takao_v1前処理(bandpass50-300+8kHz低域メル)・較正なし。LOSO 1打音93.4%/録音96.4%。普通車 215/65R16・通常ハンマー。圧力200-270kPa",
+      "path": "takao16hyb",
+      "preprocess": "takao_v1",
+      "tireInch": 16,
+      "calibrated": false
+    },
+    {
+      "id": "takao15-hyb",
+      "name": "15インチ hybrid_fk",
+      "desc": "hybrid_fk 3シードアンサンブル・takao_v1前処理(16inと共通)・較正なし。LOSO 1打音85.4%/録音95.7%。軽自動車 165/55R15・加工ハンマー。圧力200-270kPa。1打精度が低めのため2-3打叩いて平均推奨",
+      "path": "takao15hyb",
+      "preprocess": "takao_v1",
+      "tireInch": 15,
+      "calibrated": false
+    },
+    {
       "id": "exp3v2-cal",
-      "name": "exp3_v2（校正あり）",
-      "desc": "3シード(s42/s123/s456)アンサンブル + 録音単位の等張校正カーブ適用",
+      "name": "exp3_v2（16in・校正あり）",
+      "desc": "3シード(s42/s123/s456)アンサンブル + 録音単位の等張校正カーブ適用（旧16in本番・比較用）",
       "path": "exp3v2",
       "preprocess": "logmel_v1",
+      "tireInch": 16,
       "calibrated": true
     },
     {
       "id": "exp3v2-raw",
-      "name": "exp3_v2（校正なし）",
+      "name": "exp3_v2（16in・校正なし）",
       "desc": "同一アンサンブルの生出力（校正カーブ不適用・比較用）",
       "path": "exp3v2",
       "preprocess": "logmel_v1",
+      "tireInch": 16,
       "calibrated": false
     },
     {
       "id": "revtail120-raw",
-      "name": "reverb_tail（校正なし）",
+      "name": "reverb_tail（16in・校正なし）",
       "desc": "crop=reverb_tail（打撃後0.12sの残響窓・s42単独）holdout MAE 6.75（dk-pp-crop-revtail-20260604）",
       "path": "revtail120",
       "preprocess": "reverb_v1",
-      "calibrated": false
-    },
-    {
-      "id": "takao16-hyb",
-      "name": "hybrid_fk（校正なし）",
-      "desc": "hybrid_fk+SWAD 3シードアンサンブル・takao_v1前処理(bandpass50-300+8kHz低域メル)・較正なし。LOSO 1打音93.4%/録音96.4%（旧MelSpectrogramCNN 74.1%から大幅改善）",
-      "path": "takao16hyb",
-      "preprocess": "takao_v1",
+      "tireInch": 16,
       "calibrated": false
     }
   ]

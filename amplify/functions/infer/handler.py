@@ -65,29 +65,43 @@ def _require_developer(access_token: str | None) -> None:
         raise PermissionError("developer access required")
 
 
-def _set_default_model(model_id: str | None, access_token: str | None) -> dict:
-    """developers-only: set models/manifest.json "default" (the model general
-    users get). Any registered model id may be chosen, not just the caller's."""
+def _set_default_model(
+    model_id: str | None, access_token: str | None, tire_inch: int | str | None = None
+) -> dict:
+    """developers-only: set the model general users get. With tire_inch (16/15),
+    set the per-size default in manifest["defaults"][inch]; without it, set the
+    global manifest["default"] (backward compat). Any registered id may be chosen."""
     _require_developer(access_token)
     manifest = _load_manifest()
     ids = [m.get("id") for m in manifest.get("models", [])]
     if model_id not in ids:
         raise ValueError(f"unknown modelId: {model_id}")
-    manifest["default"] = model_id
+    if tire_inch is not None:
+        defaults = manifest.setdefault("defaults", {})
+        defaults[str(tire_inch)] = model_id
+        ret = {"defaults": defaults}
+    else:
+        manifest["default"] = model_id
+        ret = {"default": model_id}
     _s3.put_object(
         Bucket=BUCKET,
         Key="models/manifest.json",
         Body=json.dumps(manifest, ensure_ascii=False).encode("utf-8"),
         ContentType="application/json",
     )
-    return {"default": model_id}
+    return ret
 
 
-def _resolve_model(manifest: dict, model_id: str | None) -> dict:
+def _resolve_model(manifest: dict, model_id: str | None, tire_inch: int | str | None = None) -> dict:
+    """Pick a model entry. Priority: explicit model_id > per-size default
+    (defaults[inch]) > global default > first model."""
     models = manifest.get("models", [])
     if not models:
         raise ValueError("manifest has no models")
-    wanted = model_id or manifest.get("default") or models[0]["id"]
+    size_default = None
+    if tire_inch is not None:
+        size_default = manifest.get("defaults", {}).get(str(tire_inch))
+    wanted = model_id or size_default or manifest.get("default") or models[0]["id"]
     for m in models:
         if m.get("id") == wanted:
             return m
@@ -161,7 +175,9 @@ def handler(event, context):
         # admin action: set the default model for general users (developers only)
         if payload.get("action") == "setDefaultModel":
             try:
-                return _resp(200, _set_default_model(payload.get("modelId"), payload.get("accessToken")))
+                return _resp(200, _set_default_model(
+                    payload.get("modelId"), payload.get("accessToken"), payload.get("tireInch"),
+                ))
             except PermissionError as exc:
                 return _resp(403, {"error": str(exc)})
 
@@ -171,7 +187,7 @@ def handler(event, context):
         entity_id, base_id = _parse_audio_key(audio_key)
 
         manifest = _load_manifest()
-        model = _resolve_model(manifest, payload.get("modelId"))
+        model = _resolve_model(manifest, payload.get("modelId"), payload.get("tireInch"))
         session, raw_meta = _get_session(model["path"])
 
         # per-request meta: honour the manifest's calibrated flag

@@ -13,17 +13,26 @@ const REGION: string = custom.inferenceRegion ?? 'ap-northeast-1';
 // （通常 44.1k/48kHz）のまま WAV 化して保存する — リサンプルや特徴量化は
 // モデルごとの前処理プロファイル（Lambda側）が担う。
 
+/** タイヤサイズ（インチ）。16=普通車 / 15=軽自動車。 */
+export type TireInch = 16 | 15;
+export const TIRE_INCHES: TireInch[] = [16, 15];
+
 export interface ModelInfo {
   id: string;
   name: string;
   desc?: string;
   path?: string;
   calibrated?: boolean;
+  /** 対象タイヤサイズ（インチ）。未宣言のモデルは 16 とみなす。 */
+  tireInch?: TireInch;
 }
 
 export interface ManifestData {
   models: ModelInfo[];
+  /** 全体の既定（後方互換）。サイズ別の defaults があればそちらを優先。 */
   default?: string;
+  /** サイズ別の代表モデル {"16": id, "15": id}（一般ユーザーが各サイズで使う）。 */
+  defaults?: Record<string, string>;
 }
 
 /** Lambda が返す推定結果（results/{entity}/{id}.json と同形）。 */
@@ -133,7 +142,7 @@ export async function loadModels(): Promise<ManifestData> {
     throw new Error(`manifest取得に失敗しました (HTTP ${res.status})`);
   }
   const data = (await res.json()) as ManifestData;
-  return { models: data.models ?? [], default: data.default };
+  return { models: data.models ?? [], default: data.default, defaults: data.defaults };
 }
 
 interface LabelInput {
@@ -161,7 +170,11 @@ export async function saveLabel(input: LabelInput): Promise<string> {
 // ---------------------------------------------------------------------------
 // 推定: decode -> WAV化 -> S3アップロード(原音+WAV) -> SigV4署名でLambda呼び出し
 // ---------------------------------------------------------------------------
-export async function estimatePressure(audio: Blob, modelId: string): Promise<InferenceResult> {
+export async function estimatePressure(
+  audio: Blob,
+  modelId: string,
+  tireInch?: TireInch,
+): Promise<InferenceResult> {
   if (!INFERENCE_URL) {
     throw new Error('推論エンドポイント未設定です（バックエンド未デプロイ）。');
   }
@@ -207,7 +220,7 @@ export async function estimatePressure(audio: Blob, modelId: string): Promise<In
   const res = await aws.fetch(INFERENCE_URL, {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ audioKey, modelId }),
+    body: JSON.stringify({ audioKey, modelId, tireInch }),
   });
 
   const data = (await res.json().catch(() => ({}))) as Partial<InferenceResult> & { error?: string };
@@ -230,7 +243,7 @@ export async function estimatePressure(audio: Blob, modelId: string): Promise<In
 // ---------------------------------------------------------------------------
 // 管理者: 一般ユーザーの代表(既定)モデルを設定（developers グループのみ）
 // ---------------------------------------------------------------------------
-export async function setDefaultModel(modelId: string): Promise<void> {
+export async function setDefaultModel(modelId: string, tireInch?: TireInch): Promise<void> {
   if (!INFERENCE_URL) {
     throw new Error('推論エンドポイント未設定です（バックエンド未デプロイ）。');
   }
@@ -249,10 +262,10 @@ export async function setDefaultModel(modelId: string): Promise<void> {
   const res = await aws.fetch(INFERENCE_URL, {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ action: 'setDefaultModel', modelId, accessToken }),
+    body: JSON.stringify({ action: 'setDefaultModel', modelId, tireInch, accessToken }),
   });
   const data = (await res.json().catch(() => ({}))) as { error?: string };
   if (!res.ok) {
-    throw new Error(data.error ? `設定エラー: ${data.error}` : '代表モデルの設定に失敗しました。');
+    throw new Error(data.error ? `設定エラー: ${data.error}` : '一般ユーザーの使用モデルの設定に失敗しました。');
   }
 }

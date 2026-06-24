@@ -1,0 +1,47 @@
+{
+  "preprocess": "takao_v1",
+  "target_sr": 8000,
+  "n_fft": 2048,
+  "hop": 64,
+  "n_mels": 64,
+  "fmin": 50.0,
+  "fmax": 300.0,
+  "t_frames": 38,
+  "bp_lo": 50.0,
+  "bp_hi": 300.0,
+  "clip_len": 0.3,
+  "start_offset": -0.04,
+  "rms_frame": 512,
+  "rms_hop": 128,
+  "min_gap_s": 4.0,
+  "tire_inch": 15,
+  "model": "hybrid_fk",
+  "research_config": "c15_native",
+  "swa": false,
+  "input_norm": "foldstd (baked into ONNX)",
+  "input_shape": [
+    1,
+    64,
+    38
+  ],
+  "num_members": 3,
+  "target_mean_per_member": [
+    235.4284,
+    235.1918,
+    235.2163
+  ],
+  "target_std_per_member": [
+    20.9665,
+    20.7797,
+    20.9292
+  ],
+  "tire": "toyo TRANPATH LuK 165/55R15 (軽自動車)",
+  "pressure_range_kpa": [
+    200,
+    270
+  ],
+  "loso_hit_acc10": 0.854,
+  "loso_rec_acc10": 0.957,
+  "seed_tag": "hfk15-s42_s123_s456",
+  "note": "ONNX input = raw takao_v1 log-mel (N,1,64,38); foldstd入力正規化とper-hit脱正規化はONNXに焼込済。出力は per-hit kPa。Lambdaが打音平均。前処理は16/15共通(takao_v1)。Calibration-free."
+}
