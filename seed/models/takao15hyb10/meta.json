@@ -1,0 +1,80 @@
+{
+  "preprocess": "takao_v1",
+  "target_sr": 8000,
+  "n_fft": 2048,
+  "hop": 64,
+  "n_mels": 64,
+  "fmin": 50.0,
+  "fmax": 300.0,
+  "t_frames": 38,
+  "bp_lo": 50.0,
+  "bp_hi": 300.0,
+  "clip_len": 0.3,
+  "start_offset": -0.04,
+  "rms_frame": 512,
+  "rms_hop": 128,
+  "min_gap_s": 4.0,
+  "tire_inch": 15,
+  "model": "hybrid_fk",
+  "research_config": "c15_native",
+  "swa": false,
+  "input_norm": "foldstd (baked into ONNX)",
+  "input_shape": [
+    1,
+    64,
+    38
+  ],
+  "num_members": 10,
+  "target_mean_per_member": [
+    235.4284,
+    235.1918,
+    235.2163,
+    235.3062,
+    235.3419,
+    235.4807,
+    235.1918,
+    235.3419,
+    235.3419,
+    235.3481
+  ],
+  "target_std_per_member": [
+    20.9665,
+    20.7797,
+    20.9292,
+    20.955,
+    20.9786,
+    20.9955,
+    20.7797,
+    20.9786,
+    20.9786,
+    20.792
+  ],
+  "tire": "toyo TRANPATH LuK 165/55R15 (軽自動車)",
+  "pressure_range_kpa": [
+    200,
+    270
+  ],
+  "loso_hit_acc10": 0.911,
+  "loso_rec_acc10": 0.967,
+  "seed_tag": "hfk15-seed10-s42_s123_s456_s789_s1011_s1213_s2024_s3033_s4044_s5055",
+  "calibration": {
+    "method": "linear+clip",
+    "level": "per_hit",
+    "a": 1.006209,
+    "b": -1.6904,
+    "clip": [
+      200.0,
+      270.0
+    ],
+    "source": "exp15 seed10_lincal_clip: a,b=polyfit(seed10 ensemble train preds, y); then clip[200,270]",
+    "x": [
+      200.4458,
+      270.0138
+    ],
+    "y": [
+      200.0,
+      270.0
+    ]
+  },
+  "note": "ONNX input = raw takao_v1 log-mel (N,1,64,38); foldstd入力正規化とper-hit脱正規化はONNXに焼込済(=生seed10アンサンブルのper-hit kPa)。線形較正(a*v+b)+clip[200,270]はmeta.calibrationのx/y(2点np.interp)でLambdaが打音ごとに適用。LOSO seed10_lincal_clip: 1打音91.1%/録音96.7%(exp15)。前処理は16/15共通(takao_v1)。"
+}

@@ -3,7 +3,7 @@
   "default": "takao16-hyb",
   "defaults": {
     "16": "takao16-hyb",
-    "15": "takao15-hyb"
+    "15": "takao15-hyb10"
   },
   "models": [
     {
@@ -16,13 +16,13 @@
       "calibrated": false
     },
     {
-      "id": "takao15-hyb",
+      "id": "takao15-hyb10",
       "name": "15インチ hybrid_fk",
-      "desc": "hybrid_fk 3シードアンサンブル・takao_v1前処理(16inと共通)・較正なし。LOSO 1打音85.4%/録音95.7%。軽自動車 165/55R15・加工ハンマー。圧力200-270kPa。1打精度が低めのため2-3打叩いて平均推奨",
-      "path": "takao15hyb",
+      "desc": "hybrid_fk seed10アンサンブル・takao_v1前処理(16inと共通)・線形較正+clip[200,270]。LOSO 1打音91.1%/録音96.7%。軽自動車 165/55R15・加工ハンマー。圧力200-270kPa。2-3打の中央値で録音96.7%(16in同等以上)",
+      "path": "takao15hyb10",
       "preprocess": "takao_v1",
       "tireInch": 15,
-      "calibrated": false
+      "calibrated": true
     },
     {
       "id": "exp3v2-cal",
