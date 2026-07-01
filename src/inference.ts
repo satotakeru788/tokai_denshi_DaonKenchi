@@ -71,6 +71,9 @@ async function decodeToMono(blob: Blob): Promise<{ samples: Float32Array; sample
   let decoded: AudioBuffer;
   try {
     decoded = await ctx.decodeAudioData(arrayBuf.slice(0));
+  } catch {
+    // ブラウザの "Unable to decode audio data" を日本語で簡潔に表示する
+    throw new Error("音声を読み込めませんでした。");
   } finally {
     void ctx.close();
   }

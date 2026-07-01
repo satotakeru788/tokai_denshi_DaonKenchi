@@ -482,3 +482,746 @@ body {
   font-size: 13px;
   text-align: center;
 }
+
+/* ===========================================================================
+   一般ユーザー画面（ガラス調 / ダーク＋鮮やかグラデ）
+   ※ ここから下は .user-screen と [data-amplify-authenticator] にスコープし、
+     管理者画面（上の従来クラス）には一切影響させない。
+   =========================================================================== */
+.user-screen {
+  position: fixed;
+  inset: 0;
+  z-index: 1;
+  isolation: isolate;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  color: #eef2ff;
+  /* 認証画面と同色のベース＋背景グリッド（ガラスがこれをぼかして映し透過感を強調）。
+     色変化(グロー)は .bg-orbs で背後に敷く。 */
+  background:
+    linear-gradient(rgba(150, 195, 255, 0.15) 2px, transparent 2px) 0 0 / 46px 46px,
+    linear-gradient(90deg, rgba(150, 195, 255, 0.15) 2px, transparent 2px) 0 0 / 46px 46px,
+    #0a0e20;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* 認証画面と背景を揃えるため放射状グローは省く（グリッド＋濃紺フラットのみ）。 */
+.bg-orbs {
+  display: none;
+}
+
+/* 右上: 設定ギア（透明ガラス・背景が透ける） */
+.gear-btn {
+  position: absolute;
+  top: calc(env(safe-area-inset-top, 0px) + 16px);
+  right: 16px;
+  z-index: 3;
+  width: 46px;
+  height: 46px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  /* 録音ボタンと同じ: 透明＋シアンの発光する枠 */
+  border: 1px solid rgba(140, 205, 255, 0.65);
+  background: rgba(56, 189, 248, 0.1);
+  color: #eaf6ff;
+  cursor: pointer;
+  /* ぼかしごく弱め: 背後のグリッドが透けて見えるように */
+  -webkit-backdrop-filter: blur(3px) saturate(140%);
+  backdrop-filter: blur(3px) saturate(140%);
+  box-shadow: inset 0 0 14px rgba(56, 189, 248, 0.1);
+  transition: background 0.18s, border-color 0.18s, box-shadow 0.2s, transform 0.12s;
+}
+
+.gear-btn:hover {
+  background: rgba(56, 189, 248, 0.2);
+  border-color: rgba(170, 220, 255, 0.9);
+  box-shadow: inset 0 0 18px rgba(56, 189, 248, 0.14);
+}
+
+.gear-btn:active {
+  transform: scale(0.94) rotate(35deg);
+}
+
+.gear-btn svg {
+  width: 22px;
+  height: 22px;
+}
+
+/* 中央エリア */
+.user-main {
+  position: relative;
+  z-index: 1;
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  padding: 78px 20px 12px;
+  overflow-y: auto;
+}
+
+/* 推定結果（中央・フロストガラス） */
+.result-glass {
+  /* カードは廃止。推定値は背景の上に直接表示。中央寄せとサイズ固定だけ維持。 */
+  width: min(360px, 100%);
+  min-height: 140px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+}
+
+.result-glass .pressure {
+  display: flex;
+  align-items: baseline;
+  justify-content: center;
+  gap: 8px;
+  line-height: 1;
+  filter: drop-shadow(0 2px 22px rgba(120, 220, 255, 0.35));
+}
+
+.result-glass .pressure-num {
+  font-size: 74px;
+  font-weight: 800;
+  letter-spacing: -0.03em;
+  /* 単色（青を弱めた白っぽいライトブルー） */
+  color: #d6ebff;
+}
+
+.result-glass .pressure.empty {
+  filter: none;
+}
+
+.result-glass .pressure.empty .pressure-num {
+  background: none;
+  color: rgba(255, 255, 255, 0.28);
+}
+
+.result-glass .unit {
+  font-size: 22px;
+  font-weight: 600;
+  color: rgba(238, 242, 255, 0.6);
+}
+
+.result-glass .result-sub {
+  margin-top: 10px;
+  font-size: 13px;
+  color: rgba(238, 242, 255, 0.62);
+}
+
+/* 録音中の視覚インジケータ（音声バーのアニメーション・文字なし） */
+.rec-indicator {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  height: 56px;
+}
+
+.rec-indicator span {
+  /* 録音ボタンと同じ: 中身は透明、シアンの淵が光る */
+  width: 9px;
+  height: 50px;
+  border-radius: 5px;
+  background: rgba(56, 189, 248, 0.1);
+  border: 1px solid rgba(140, 205, 255, 0.65);
+  box-shadow: inset 0 0 8px rgba(56, 189, 248, 0.12);
+  transform: scaleY(0.32);
+  transform-origin: center;
+  animation: recBars 1s ease-in-out infinite;
+}
+
+.rec-indicator span:nth-child(1) {
+  animation-delay: 0s;
+}
+.rec-indicator span:nth-child(2) {
+  animation-delay: 0.18s;
+}
+.rec-indicator span:nth-child(3) {
+  animation-delay: 0.36s;
+}
+.rec-indicator span:nth-child(4) {
+  animation-delay: 0.18s;
+}
+.rec-indicator span:nth-child(5) {
+  animation-delay: 0s;
+}
+
+@keyframes recBars {
+  0%,
+  100% {
+    transform: scaleY(0.32);
+  }
+  50% {
+    transform: scaleY(1);
+  }
+}
+
+/* 推定中スピナー */
+.estimating {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 14px;
+  padding: 8px 0;
+}
+
+.estimating .spinner {
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  border: 3px solid rgba(255, 255, 255, 0.18);
+  border-top-color: #7af0ff;
+  animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* お知らせ / エラー（ガラス） */
+.glass-note {
+  width: min(360px, 100%);
+  padding: 11px 16px;
+  border-radius: 14px;
+  font-size: 13px;
+  text-align: center;
+  -webkit-backdrop-filter: blur(14px);
+  backdrop-filter: blur(14px);
+}
+
+.glass-note.err {
+  /* 赤い枠は不要。テキストのみ・背景の青に合う色味。 */
+  color: #b9d4ff;
+  background: none;
+  border: none;
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+}
+
+/* ファイル時の打音モード切替 + 波形（控えめ） */
+.file-modes-glass {
+  width: min(360px, 100%);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.user-screen .waveform {
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  box-shadow: none;
+}
+
+/* セグメント切替（ガラス・透明ボタン） */
+.glass-seg {
+  display: flex;
+  gap: 4px;
+  padding: 4px;
+  border-radius: 14px;
+  border: 1px solid rgba(140, 205, 255, 0.4);
+  background: rgba(56, 189, 248, 0.06);
+  /* ぼかしごく弱め: 背後のグリッドが透けて見えるように */
+  -webkit-backdrop-filter: blur(3px) saturate(140%);
+  backdrop-filter: blur(3px) saturate(140%);
+}
+
+.glass-seg.vertical {
+  flex-direction: column;
+}
+
+.glass-seg button {
+  flex: 1;
+  appearance: none;
+  border: none;
+  background: transparent;
+  color: rgba(238, 242, 255, 0.7);
+  font-size: 13px;
+  font-weight: 600;
+  padding: 10px 8px;
+  border-radius: 10px;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background 0.15s, color 0.15s;
+}
+
+.glass-seg button:hover:not(.on):not(:disabled) {
+  color: #fff;
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.glass-seg button.on {
+  background: rgba(56, 189, 248, 0.24);
+  color: #fff;
+}
+
+.glass-seg button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* 実測値登録（控えめ・ガラス） */
+.label-glass {
+  width: min(300px, 100%);
+  display: flex;
+  gap: 8px;
+}
+
+.kpa-field-glass {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  min-width: 0;
+  /* 認証画面の入力欄と同じ: ほぼ透明・角丸ピル・シアンの細枠 */
+  border-radius: 14px;
+  border: 1px solid rgba(150, 200, 255, 0.32);
+  background: rgba(255, 255, 255, 0.03);
+  /* ぼかしごく弱め: 背後のグリッドが透けて見えるように */
+  -webkit-backdrop-filter: blur(3px) saturate(140%);
+  backdrop-filter: blur(3px) saturate(140%);
+  transition: border-color 0.15s;
+}
+
+.kpa-field-glass:focus-within {
+  border-color: rgba(140, 205, 255, 0.85);
+  box-shadow: 0 0 0 3px rgba(56, 189, 248, 0.2);
+}
+
+.kpa-field-glass input {
+  flex: 1;
+  min-width: 0;
+  border: none;
+  background: transparent;
+  padding: 9px 4px 9px 12px;
+  font-size: 13px;
+  color: #fff;
+}
+
+.kpa-field-glass input::placeholder {
+  color: rgba(255, 255, 255, 0.4);
+}
+
+.kpa-field-glass input:focus {
+  outline: none;
+}
+
+.kpa-field-glass .kpa-unit {
+  padding: 0 12px 0 4px;
+  font-size: 12px;
+  font-weight: 700;
+  color: rgba(238, 242, 255, 0.6);
+  user-select: none;
+}
+
+.label-glass button {
+  /* 認証画面のボタンと同じ: 枠線だけの透けるボタン＋シアンの発光 */
+  appearance: none;
+  border: 1px solid rgba(140, 205, 255, 0.6);
+  background: rgba(56, 189, 248, 0.1);
+  color: #eaf6ff;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  padding: 9px 16px;
+  border-radius: 14px;
+  cursor: pointer;
+  white-space: nowrap;
+  /* ぼかしごく弱め: 背後のグリッドが透けて見えるように */
+  -webkit-backdrop-filter: blur(3px) saturate(140%);
+  backdrop-filter: blur(3px) saturate(140%);
+  box-shadow: 0 0 14px rgba(56, 189, 248, 0.2), inset 0 0 10px rgba(56, 189, 248, 0.08);
+  transition: background 0.15s, border-color 0.15s, box-shadow 0.2s;
+}
+
+.label-glass button:hover:not(:disabled) {
+  background: rgba(56, 189, 248, 0.2);
+  border-color: rgba(170, 220, 255, 0.9);
+  box-shadow: 0 0 20px rgba(56, 189, 248, 0.35), inset 0 0 12px rgba(56, 189, 248, 0.1);
+}
+
+.label-glass button:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+/* 下部中央: 録音ボタン（最も目立つ・発光アクセント） */
+.user-dock {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 20px calc(env(safe-area-inset-bottom, 0px) + 26px);
+}
+
+.record-fab {
+  width: 88px;
+  height: 88px;
+  border-radius: 50%;
+  /* サインインボタンと同じ: 枠線だけの透けるシアン */
+  border: 1px solid rgba(140, 205, 255, 0.65);
+  display: grid;
+  place-items: center;
+  color: #eaf6ff;
+  cursor: pointer;
+  background: rgba(56, 189, 248, 0.1);
+  /* ぼかしごく弱め: 背後のグリッドがボタン越しに透けて見えるように */
+  -webkit-backdrop-filter: blur(3px) saturate(140%);
+  backdrop-filter: blur(3px) saturate(140%);
+  box-shadow: inset 0 0 16px rgba(56, 189, 248, 0.12);
+  transition: background 0.15s, border-color 0.15s, box-shadow 0.2s, transform 0.12s;
+}
+
+.record-fab svg {
+  width: 36px;
+  height: 36px;
+}
+
+.record-fab:hover:not(:disabled) {
+  background: rgba(56, 189, 248, 0.2);
+  border-color: rgba(170, 220, 255, 0.9);
+  box-shadow: inset 0 0 20px rgba(56, 189, 248, 0.18);
+}
+
+.record-fab:active:not(:disabled) {
+  transform: scale(0.93);
+}
+
+.record-fab:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  box-shadow: none;
+}
+
+.record-fab.recording {
+  background: rgba(56, 189, 248, 0.18);
+  animation: recPulse 1.4s ease-in-out infinite;
+}
+
+@keyframes recPulse {
+  0%,
+  100% {
+    border-color: rgba(150, 210, 255, 0.7);
+    box-shadow: inset 0 0 16px rgba(56, 189, 248, 0.12);
+  }
+  50% {
+    border-color: rgba(195, 232, 255, 1);
+    box-shadow: inset 0 0 26px rgba(56, 189, 248, 0.3);
+  }
+}
+
+/* ファイル選択（控えめ・透明ピル） */
+/* 設定ポップアップ（透明＋ぼかし、背景もぼかす） */
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 20;
+  display: grid;
+  place-items: center;
+  padding: 20px;
+  /* 背景は軽くぼかす程度（グリッドが透けて見えるよう弱め）＋薄いトーン */
+  background: rgba(18, 22, 50, 0.22);
+  -webkit-backdrop-filter: blur(3.5px) saturate(140%);
+  backdrop-filter: blur(3.5px) saturate(140%);
+  animation: fadeIn 0.18s ease;
+}
+
+.modal-glass {
+  width: min(360px, 92vw);
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding: 22px;
+  border-radius: 22px;
+  /* 認証画面のカードと同じ見た目（ダークグレー透明＋シアン寄りの細い縁） */
+  border: 1px solid rgba(150, 210, 255, 0.28);
+  background:
+    linear-gradient(135deg, rgba(255, 255, 255, 0.07), rgba(255, 255, 255, 0) 60%),
+    rgba(22, 30, 78, 0.04);
+  color: #f4f6ff;
+  /* ぼかしごく弱め: 背後のグリッドがカード越しに透けて見えるように */
+  -webkit-backdrop-filter: blur(3px) saturate(140%);
+  backdrop-filter: blur(3px) saturate(140%);
+  box-shadow: 0 0 0 1px rgba(150, 210, 255, 0.1), 0 28px 70px rgba(0, 0, 0, 0.42),
+    inset 0 1px 0 rgba(255, 255, 255, 0.16), inset 0 0 26px rgba(56, 189, 248, 0.05);
+  animation: popIn 0.2s cubic-bezier(0.2, 0.9, 0.3, 1.2);
+}
+
+.modal-section {
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+}
+
+.ghost-btn {
+  /* 設定内の通常ボタン: 発光なし（ログアウトだけ目立たせるため） */
+  width: 100%;
+  appearance: none;
+  padding: 13px;
+  border-radius: 14px;
+  border: 1px solid rgba(140, 205, 255, 0.32);
+  background: rgba(56, 189, 248, 0.06);
+  color: #eaf6ff;
+  font-size: 14px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  cursor: pointer;
+  -webkit-backdrop-filter: blur(12px);
+  backdrop-filter: blur(12px);
+  transition: background 0.15s, border-color 0.15s;
+}
+
+/* 設定内の「ファイルから選択」(ghost-btn をラベルとして利用) */
+.modal-file {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+
+.modal-file svg {
+  width: 16px;
+  height: 16px;
+}
+
+.modal-file.disabled {
+  opacity: 0.5;
+  pointer-events: none;
+}
+
+.ghost-btn:hover {
+  background: rgba(56, 189, 248, 0.12);
+  border-color: rgba(140, 205, 255, 0.55);
+}
+
+.logout-btn {
+  width: 100%;
+  appearance: none;
+  padding: 14px;
+  margin-top: 2px;
+  border-radius: 14px;
+  /* 枠を強めに光らせて目立たせる（明るい枠＋密着グロー＋広がるグロー） */
+  border: 1px solid rgba(165, 218, 255, 0.9);
+  background: rgba(56, 189, 248, 0.12);
+  color: #eaf6ff;
+  font-size: 15px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  cursor: pointer;
+  -webkit-backdrop-filter: blur(12px);
+  backdrop-filter: blur(12px);
+  box-shadow: 0 0 0 1px rgba(160, 215, 255, 0.5), inset 0 0 20px rgba(56, 189, 248, 0.16);
+  transition: background 0.15s, border-color 0.15s, box-shadow 0.2s;
+}
+
+.logout-btn:hover {
+  background: rgba(56, 189, 248, 0.22);
+  border-color: rgba(190, 230, 255, 1);
+  box-shadow: 0 0 0 1px rgba(180, 225, 255, 0.7), inset 0 0 24px rgba(56, 189, 248, 0.2);
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes popIn {
+  from {
+    opacity: 0;
+    transform: translateY(8px) scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+/* ===========================================================================
+   Cognito ログイン画面（Amplify Authenticator）のダークガラステーマ
+   ※ [data-amplify-authenticator] は未ログイン時のみ DOM に存在するため、
+     ログイン後の管理者/一般ユーザー画面には影響しない。
+   =========================================================================== */
+[data-amplify-authenticator] {
+  position: fixed;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  overflow: auto;
+  /* ログイン後と同色のベース＋背景グリッド（カードがこれをぼかして映し透過感を強調）。
+     中央の放射状グローは省き、グリッド＋濃紺のフラット背景にする。 */
+  background:
+    linear-gradient(rgba(150, 195, 255, 0.15) 2px, transparent 2px) 0 0 / 46px 46px,
+    linear-gradient(90deg, rgba(150, 195, 255, 0.15) 2px, transparent 2px) 0 0 / 46px 46px,
+    #0a0e20;
+
+  --amplify-space-large: 1.35rem;
+  --amplify-components-fieldcontrol-border-radius: 12px;
+  --amplify-components-button-border-radius: 12px;
+  --amplify-components-tabs-item-font-size: 1rem;
+  --amplify-colors-font-primary: #eef2ff;
+  --amplify-colors-font-secondary: #c7cdec;
+  --amplify-colors-font-tertiary: #9aa2c9;
+  --amplify-colors-background-primary: rgba(255, 255, 255, 0.06);
+  --amplify-colors-background-secondary: transparent;
+  --amplify-colors-border-primary: rgba(255, 255, 255, 0.2);
+  --amplify-colors-border-secondary: rgba(255, 255, 255, 0.14);
+  --amplify-colors-brand-primary-80: #38bdf8;
+  --amplify-colors-brand-primary-90: #22d3ee;
+  --amplify-colors-brand-primary-100: #4f7cff;
+  --amplify-components-authenticator-router-background-color: rgba(22, 30, 78, 0.04);
+  --amplify-components-authenticator-router-border-color: rgba(150, 210, 255, 0.28);
+  --amplify-components-authenticator-router-box-shadow: 0 28px 70px rgba(0, 0, 0, 0.4);
+  --amplify-components-authenticator-state-inactive-background-color: transparent;
+  --amplify-components-tabs-item-color: #c7cdec;
+  --amplify-components-tabs-item-active-color: #ffffff;
+  --amplify-components-tabs-item-active-border-color: #38ccd0;
+  --amplify-components-tabs-item-hover-color: #ffffff;
+  --amplify-components-fieldcontrol-color: #ffffff;
+  --amplify-components-fieldcontrol-background-color: rgba(255, 255, 255, 0.05);
+  --amplify-components-fieldcontrol-border-color: rgba(255, 255, 255, 0.24);
+  --amplify-components-fieldcontrol-focus-border-color: #38bdf8;
+  --amplify-components-fieldcontrol-focus-box-shadow: 0 0 0 3px rgba(56, 189, 248, 0.32);
+  --amplify-components-heading-color: #ffffff;
+}
+
+/* ガラスのカード本体（透明＋ぼかし＋斜めのシーン光） */
+[data-amplify-authenticator] [data-amplify-router] {
+  /* ぼかしはごく弱め: 背後のグリッドがカード越しにはっきり透けて見えるように */
+  -webkit-backdrop-filter: blur(3px) saturate(140%);
+  backdrop-filter: blur(3px) saturate(140%);
+  border-radius: 22px;
+  overflow: hidden;
+  /* 細く光る枠（参考画像の透け感）。外側グローは無し。 */
+  background-image: linear-gradient(135deg, rgba(255, 255, 255, 0.07), rgba(255, 255, 255, 0) 60%);
+  box-shadow: 0 0 0 1px rgba(150, 210, 255, 0.1), 0 28px 70px rgba(0, 0, 0, 0.42),
+    inset 0 1px 0 rgba(255, 255, 255, 0.16), inset 0 0 26px rgba(56, 189, 248, 0.05);
+}
+
+/* フォームに余白を持たせてモダンに */
+[data-amplify-authenticator] .amplify-tabs__panel,
+[data-amplify-authenticator] [data-amplify-router] form {
+  padding: 1.85rem;
+}
+
+/* タブ（サインイン / アカウントを作る）をすっきりと */
+[data-amplify-authenticator] .amplify-tabs__list {
+  border-bottom-color: rgba(255, 255, 255, 0.14);
+}
+
+[data-amplify-authenticator] .amplify-tabs__item {
+  font-weight: 600;
+  letter-spacing: 0.01em;
+}
+
+[data-amplify-authenticator] .amplify-tabs__item[aria-selected="true"],
+[data-amplify-authenticator] .amplify-tabs__item[data-state="active"] {
+  border-bottom-width: 3px;
+}
+
+/* 入力欄: 角丸・半透明・少し背の高いモダンな形 */
+[data-amplify-authenticator] .amplify-input,
+[data-amplify-authenticator] .amplify-select {
+  /* ほぼ透明・角丸ピル。背景が透ける。 */
+  background: rgba(255, 255, 255, 0.03);
+  border-color: rgba(150, 200, 255, 0.32);
+  border-radius: 14px;
+  padding: 0.85rem 1rem;
+  color: #fff;
+  transition: border-color 0.15s, background 0.15s, box-shadow 0.15s;
+}
+
+[data-amplify-authenticator] .amplify-input:hover,
+[data-amplify-authenticator] .amplify-select:hover {
+  background: rgba(255, 255, 255, 0.06);
+  border-color: rgba(150, 200, 255, 0.5);
+}
+
+[data-amplify-authenticator] .amplify-input::placeholder {
+  color: rgba(255, 255, 255, 0.4);
+}
+
+/* ブラウザ自動入力でも白くならずダーク基調を保つ */
+[data-amplify-authenticator] input:-webkit-autofill,
+[data-amplify-authenticator] input:-webkit-autofill:hover,
+[data-amplify-authenticator] input:-webkit-autofill:focus,
+[data-amplify-authenticator] input:-webkit-autofill:active {
+  /* 自動入力後も入力欄の色を変えない: 上塗りせず、元の透過背景を維持する。
+     超長 transition でオートフィル背景の反映を実質無効化（テキスト色だけ指定）。 */
+  -webkit-text-fill-color: #ffffff;
+  caret-color: #ffffff;
+  transition: background-color 600000s 0s, color 600000s 0s;
+}
+
+/* パスワード欄(入力 + 表示切替)の連結部の角丸 */
+[data-amplify-authenticator] .amplify-field-group .amplify-input {
+  border-radius: 14px 0 0 14px;
+}
+
+[data-amplify-authenticator] .amplify-field-group__outer-end .amplify-button {
+  background: rgba(255, 255, 255, 0.04);
+  border-color: rgba(150, 200, 255, 0.32);
+  border-radius: 0 14px 14px 0;
+  color: #eef2ff;
+}
+
+[data-amplify-authenticator] .amplify-field-group__outer-end .amplify-button:hover {
+  background: rgba(255, 255, 255, 0.1);
+}
+
+/* ラベル */
+[data-amplify-authenticator] .amplify-label {
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: rgba(244, 246, 255, 0.8);
+}
+
+/* 主ボタン（サインイン）: 角丸・太字・発光グラデ */
+/* LOGINボタン: 塗りつぶしでなく“枠線だけの透けるボタン”（参考画像） */
+[data-amplify-authenticator] .amplify-button--primary {
+  border: 1px solid rgba(140, 205, 255, 0.65);
+  border-radius: 14px;
+  padding: 0.9rem 1rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  color: #eaf6ff;
+  background: rgba(56, 189, 248, 0.1);
+  box-shadow: inset 0 0 14px rgba(56, 189, 248, 0.1);
+  transition: background 0.15s, border-color 0.15s, box-shadow 0.2s, transform 0.08s;
+}
+
+[data-amplify-authenticator] .amplify-button--primary:hover {
+  color: #ffffff;
+  background: rgba(56, 189, 248, 0.2);
+  border-color: rgba(170, 220, 255, 0.9);
+  box-shadow: inset 0 0 18px rgba(56, 189, 248, 0.14);
+}
+
+[data-amplify-authenticator] .amplify-button--primary:active {
+  transform: scale(0.99);
+}
+
+[data-amplify-authenticator] .amplify-button--primary:active {
+  transform: scale(0.99);
+}
+
+[data-amplify-authenticator] .amplify-button--link {
+  color: #9ec5ff;
+  border-radius: 10px;
+}
+
+[data-amplify-authenticator] .amplify-button--link:hover {
+  background: rgba(255, 255, 255, 0.08);
+  color: #c5e0ff;
+}

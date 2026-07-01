@@ -1,4 +1,4 @@
-import { type ChangeEvent, useEffect, useRef, useState } from "react";
+import { type ChangeEvent, useRef, useState, useEffect } from "react";
 import {
   estimatePressure,
   loadModels,
@@ -44,6 +44,43 @@ const INCH_LABEL: Record<TireInch, string> = {
   15: "15インチ（軽自動車）",
 };
 
+// --- アイコン（依存追加なしのインラインSVG） ---
+function IconGear() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <circle cx="12" cy="12" r="3" />
+      <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
+    </svg>
+  );
+}
+
+function IconMic() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <rect x="9" y="2" width="6" height="12" rx="3" />
+      <path d="M5 10a7 7 0 0 0 14 0" />
+      <line x1="12" y1="19" x2="12" y2="22" />
+    </svg>
+  );
+}
+
+function IconStop() {
+  return (
+    <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+      <rect x="6" y="6" width="12" height="12" rx="2.5" />
+    </svg>
+  );
+}
+
+function IconFile() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+      <polyline points="14 2 14 8 20 8" />
+    </svg>
+  );
+}
+
 function App({ signOut, username }: AppProps) {
   const [models, setModels] = useState<ModelInfo[]>([]);
   const [modelId, setModelId] = useState("");
@@ -70,6 +107,8 @@ function App({ signOut, username }: AppProps) {
   const [recording, setRecording] = useState(false);
   const recRef = useRef<MediaRecorder | null>(null);
   const chunksRef = useRef<Blob[]>([]);
+  // 一般ユーザー画面: 録音停止後に自動推定するためのフラグ
+  const autoRef = useRef(false);
 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -82,6 +121,20 @@ function App({ signOut, username }: AppProps) {
   const [labelSaving, setLabelSaving] = useState(false);
   const [labelSaved, setLabelSaved] = useState(false);
   const [labelError, setLabelError] = useState("");
+
+  // 設定ポップアップ（一般ユーザー画面）
+  const [settingsOpen, setSettingsOpen] = useState(false);
+
+  // 自動推定はコールバック（rec.onstop）から呼ぶため、最新の modelId/tireInch を
+  // ref で参照してクロージャの古い値を避ける。
+  const modelIdRef = useRef(modelId);
+  const tireInchRef = useRef(tireInch);
+  useEffect(() => {
+    modelIdRef.current = modelId;
+  }, [modelId]);
+  useEffect(() => {
+    tireInchRef.current = tireInch;
+  }, [tireInch]);
 
   useEffect(() => {
     // モデル一覧は全ユーザーで取得する(一般ユーザーも default モデルの
@@ -115,13 +168,10 @@ function App({ signOut, username }: AppProps) {
       shownValue = result.pressureKpa;
     } else if (mode === "all") {
       shownValue = result.pressureKpa;
-      shownSub = `ファイル全${result.hitsUsed}打の平均`;
     } else if (mode === "single") {
       shownValue = perHit[0] ?? result.pressureKpa;
-      shownSub = "1打目の推定";
     } else {
       shownValue = perHit[picked] ?? null;
-      shownSub = `${picked + 1}打目`;
     }
   }
 
@@ -162,10 +212,16 @@ function App({ signOut, username }: AppProps) {
         if (e.data.size) chunksRef.current.push(e.data);
       };
       rec.onstop = () => {
-        setAudioBlob(new Blob(chunksRef.current, { type: rec.mimeType || "audio/webm" }));
+        const blob = new Blob(chunksRef.current, { type: rec.mimeType || "audio/webm" });
+        setAudioBlob(blob);
         setSource("record");
         setAudioLabel("録音した音声");
         stream.getTracks().forEach((t) => t.stop());
+        // 一般ユーザー画面: 録音を止めたら瞬時に推定を開始する
+        if (autoRef.current) {
+          autoRef.current = false;
+          void runEstimate(blob, "record");
+        }
       };
       rec.start();
       recRef.current = rec;
@@ -181,6 +237,18 @@ function App({ signOut, username }: AppProps) {
     setRecording(false);
   }
 
+  /** 一般ユーザー画面: 録音ボタン1つで 録音開始 / 停止+即推定 をトグル。 */
+  function toggleRecord() {
+    if (loading) return;
+    if (recording) {
+      autoRef.current = true; // 停止 → onstop で自動推定
+      recRef.current?.stop();
+      setRecording(false);
+    } else {
+      void startRec();
+    }
+  }
+
   function onPickFile(e: ChangeEvent<HTMLInputElement>) {
     const f = e.target.files?.[0];
     if (f) {
@@ -191,14 +259,30 @@ function App({ signOut, username }: AppProps) {
     }
   }
 
-  async function onEstimate() {
-    if (!audioBlob || !modelId) return;
+  /** 一般ユーザー画面: ファイルを選んだら設定を閉じて即推定する。 */
+  function onPickFileUser(e: ChangeEvent<HTMLInputElement>) {
+    const f = e.target.files?.[0];
+    if (!f) return;
+    setSettingsOpen(false);
+    setAudioBlob(f);
+    setSource("file");
+    setAudioLabel(f.name);
+    resetForNewInput();
+    void runEstimate(f, "file");
+    e.target.value = ""; // 同じファイルを連続で選べるように
+  }
+
+  /** 推定本体。blob と source を引数で受け、modelId/tireInch は最新値(ref)を使う。 */
+  async function runEstimate(blob: Blob, src: Exclude<Source, null>) {
+    const mid = modelIdRef.current;
+    if (!blob || !mid) return;
     setLoading(true);
     setError("");
     setResult(null);
     setLabelSaved(false);
     try {
-      const r = await estimatePressure(audioBlob, modelId, tireInch);
+      const r = await estimatePressure(blob, mid, tireInchRef.current);
+      setSource(src);
       setResult(r);
       setPicked(0);
       setMode("all");
@@ -207,6 +291,11 @@ function App({ signOut, username }: AppProps) {
     } finally {
       setLoading(false);
     }
+  }
+
+  async function onEstimate() {
+    if (!audioBlob || !source) return;
+    await runEstimate(audioBlob, source);
   }
 
   async function onSetDefault(inch: TireInch) {
@@ -251,20 +340,23 @@ function App({ signOut, username }: AppProps) {
     }
   }
 
-  return (
-    <div className="app">
-      <header className="topbar">
-        <h1>打音検知</h1>
-        <div className="user-box">
-          {username && <span className="user">{username}</span>}
-          <button className="link" onClick={signOut}>
-            ログアウト
-          </button>
-        </div>
-      </header>
+  // =========================================================================
+  // 管理者画面（developers かつ adminView のとき）。従来UIのまま。
+  // =========================================================================
+  if (isDev && adminView) {
+    return (
+      <div className="app">
+        <header className="topbar">
+          <h1>打音検知</h1>
+          <div className="user-box">
+            {username && <span className="user">{username}</span>}
+            <button className="link" onClick={signOut}>
+              ログアウト
+            </button>
+          </div>
+        </header>
 
-      {/* 画面切り替え（developers のみ）。選んだ方の画面になる。 */}
-      {isDev && (
+        {/* 画面切り替え（developers のみ）。選んだ方の画面になる。 */}
         <div className="mode-toggle view-switch">
           <button className={!adminView ? "on" : ""} onClick={() => setView(false)}>
             一般ユーザー
@@ -273,167 +365,317 @@ function App({ signOut, username }: AppProps) {
             管理者
           </button>
         </div>
-      )}
 
-      {/* タイヤサイズ選択（全ユーザー）。選んだサイズの代表モデルで推論する。 */}
-      <div className="size-row">
-        <span className="size-label">タイヤサイズ</span>
-        <div className="mode-toggle size-toggle">
-          {TIRE_INCHES.map((inch) => (
-            <button
-              key={inch}
-              className={tireInch === inch ? "on" : ""}
-              onClick={() => onSelectInch(inch)}
-              disabled={loading}
-            >
-              {INCH_LABEL[inch]}
-            </button>
-          ))}
+        {/* タイヤサイズ選択（全ユーザー）。選んだサイズの代表モデルで推論する。 */}
+        <div className="size-row">
+          <span className="size-label">タイヤサイズ</span>
+          <div className="mode-toggle size-toggle">
+            {TIRE_INCHES.map((inch) => (
+              <button
+                key={inch}
+                className={tireInch === inch ? "on" : ""}
+                onClick={() => onSelectInch(inch)}
+                disabled={loading}
+              >
+                {INCH_LABEL[inch]}
+              </button>
+            ))}
+          </div>
         </div>
-      </div>
 
-      {/* モデル一覧の取得失敗は全ユーザー・全ビューに見せる — 取得失敗時に推定
-          ボタンが無効のまま無言になるのを防ぐ */}
-      {modelsError && <div className="error">モデル一覧の取得に失敗: {modelsError}</div>}
+        {modelsError && <div className="error">モデル一覧の取得に失敗: {modelsError}</div>}
 
-      {/* モデル選択(管理者画面のみ。選択中サイズのモデルだけ表示。一般ユーザー／
-          プレビュー時はサイズの代表モデルで推定) */}
-      {isDev && adminView && !modelsError && (
-        <select
-          className="model-select"
-          value={modelId}
-          onChange={(e) => setModelId(e.target.value)}
-          disabled={loading}
-        >
-          {modelsOfInch(models, tireInch).map((m) => (
-            <option key={m.id} value={m.id}>
-              {m.name}
-            </option>
-          ))}
-        </select>
-      )}
+        {!modelsError && (
+          <select
+            className="model-select"
+            value={modelId}
+            onChange={(e) => setModelId(e.target.value)}
+            disabled={loading}
+          >
+            {modelsOfInch(models, tireInch).map((m) => (
+              <option key={m.id} value={m.id}>
+                {m.name}
+              </option>
+            ))}
+          </select>
+        )}
 
-      {/* 代表モデル設定（管理者画面のみ）。一般ユーザーが使うモデルを設定。
-          選択中のタイヤサイズの行だけ表示する（16in選択時に15inの行は出さない）。 */}
-      {isDev && adminView && !modelsError && (
-        <div className="dev-defaults">
-          <div className="dev-default">
-            <span className="dev-default-label">一般ユーザー</span>
-            <select
-              value={adminDefault[tireInch]}
-              onChange={(e) => {
-                setAdminDefault((a) => ({ ...a, [tireInch]: e.target.value }));
-                setDefaultMsg(null);
-              }}
-              disabled={savingInch !== null}
-            >
-              {modelsOfInch(models, tireInch).map((m) => (
-                <option key={m.id} value={m.id}>
-                  {m.name}
-                </option>
-              ))}
-            </select>
-            <button onClick={() => onSetDefault(tireInch)} disabled={savingInch !== null}>
-              {savingInch === tireInch ? "設定中…" : "設定"}
+        {/* 代表モデル設定（管理者画面のみ）。一般ユーザーが使うモデルを設定。 */}
+        {!modelsError && (
+          <div className="dev-defaults">
+            <div className="dev-default">
+              <span className="dev-default-label">一般ユーザー</span>
+              <select
+                value={adminDefault[tireInch]}
+                onChange={(e) => {
+                  setAdminDefault((a) => ({ ...a, [tireInch]: e.target.value }));
+                  setDefaultMsg(null);
+                }}
+                disabled={savingInch !== null}
+              >
+                {modelsOfInch(models, tireInch).map((m) => (
+                  <option key={m.id} value={m.id}>
+                    {m.name}
+                  </option>
+                ))}
+              </select>
+              <button onClick={() => onSetDefault(tireInch)} disabled={savingInch !== null}>
+                {savingInch === tireInch ? "設定中…" : "設定"}
+              </button>
+              {defaultMsg?.inch === tireInch && (
+                <span className={"dev-default-msg" + (defaultMsg.ok ? " ok" : " err")}>
+                  {defaultMsg.text}
+                </span>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* 入力：録音は大きく、ファイル選択は小さくサブ的に */}
+        <div className="input-row">
+          {recording ? (
+            <button className="rec-btn recording" onClick={stopRec}>
+              ■ 録音を停止
             </button>
-            {defaultMsg?.inch === tireInch && (
-              <span className={"dev-default-msg" + (defaultMsg.ok ? " ok" : " err")}>
-                {defaultMsg.text}
-              </span>
+          ) : (
+            <button className="rec-btn" onClick={startRec} disabled={loading}>
+              ● 録音する
+            </button>
+          )}
+          <label className="file-link">
+            ファイル選択
+            <input type="file" accept="audio/*" onChange={onPickFile} hidden />
+          </label>
+        </div>
+        {recording ? (
+          <div className="status-chip rec">● 録音中… タイヤを1回はっきり叩いてください</div>
+        ) : audioBlob && source === "record" ? (
+          <div className="status-chip ok">✓ 録音完了</div>
+        ) : audioBlob && source === "file" ? (
+          <div className="status-chip ok">✓ ファイル選択済み: {audioLabel}</div>
+        ) : null}
+
+        <button
+          className="estimate-btn"
+          onClick={onEstimate}
+          disabled={!audioBlob || !modelId || loading}
+        >
+          {loading ? "推定中…" : "空気圧を推定する"}
+        </button>
+
+        {error && <div className="error">{error}</div>}
+
+        {result && source === "file" && (
+          <div className="file-modes">
+            <div className="mode-toggle">
+              <button className={mode === "single" ? "on" : ""} onClick={() => setMode("single")}>
+                1打音
+              </button>
+              <button className={mode === "all" ? "on" : ""} onClick={() => setMode("all")}>
+                全打音平均
+              </button>
+              <button className={mode === "pick" ? "on" : ""} onClick={() => setMode("pick")}>
+                波形から選択
+              </button>
+            </div>
+            {mode === "pick" && result.samples && (
+              <Waveform
+                samples={result.samples}
+                sampleRate={result.sampleRate ?? 22050}
+                peakSeconds={result.peakSeconds ?? []}
+                picked={picked}
+                onPick={setPicked}
+              />
             )}
           </div>
-        </div>
-      )}
-
-      {/* 入力：録音は大きく、ファイル選択は小さくサブ的に */}
-      <div className="input-row">
-        {recording ? (
-          <button className="rec-btn recording" onClick={stopRec}>
-            ■ 録音を停止
-          </button>
-        ) : (
-          <button className="rec-btn" onClick={startRec} disabled={loading}>
-            ● 録音する
-          </button>
         )}
-        <label className="file-link">
-          ファイル選択
-          <input type="file" accept="audio/*" onChange={onPickFile} hidden />
-        </label>
-      </div>
-      {recording ? (
-        <div className="status-chip rec">● 録音中… タイヤを1回はっきり叩いてください</div>
-      ) : audioBlob && source === "record" ? (
-        <div className="status-chip ok">✓ 録音完了</div>
-      ) : audioBlob && source === "file" ? (
-        <div className="status-chip ok">✓ ファイル選択済み: {audioLabel}</div>
-      ) : null}
 
-      {/* 推定ボタン */}
-      <button
-        className="estimate-btn"
-        onClick={onEstimate}
-        disabled={!audioBlob || !modelId || loading}
-      >
-        {loading ? "推定中…" : "空気圧を推定する"}
+        <div className="result-box">
+          <div className={shownValue != null ? "pressure" : "pressure empty"}>
+            {shownValue != null ? shownValue : "—"}
+            <span className="unit"> kPa</span>
+          </div>
+          {shownSub && <div className="result-sub">{shownSub}</div>}
+        </div>
+
+        {result && shownValue != null && (
+          <div className="label-row">
+            <div className="kpa-field">
+              <input
+                type="number"
+                inputMode="decimal"
+                placeholder="実測値（例: 240）"
+                value={actualKpa}
+                onChange={(e) => setActualKpa(e.target.value)}
+              />
+              <span className="kpa-unit">kPa</span>
+            </div>
+            <button onClick={onSaveLabel} disabled={labelSaving || labelSaved}>
+              {labelSaved ? "保存済 ✓" : labelSaving ? "保存中…" : "保存"}
+            </button>
+          </div>
+        )}
+        {labelError && <div className="error">{labelError}</div>}
+      </div>
+    );
+  }
+
+  // =========================================================================
+  // 一般ユーザー画面（ガラス調 / 録音中心）。
+  // =========================================================================
+  return (
+    <div className="user-screen">
+      {/* 背景オーロラ（ぼかしたカラーブロブ）。ガラス越しに色が透けるための“背後の色変化”。 */}
+      <div className="bg-orbs" aria-hidden="true" />
+
+      {/* 右上: 設定 */}
+      <button className="gear-btn" onClick={() => setSettingsOpen(true)} aria-label="設定">
+        <IconGear />
       </button>
 
-      {error && <div className="error">{error}</div>}
+      {/* 中央: 推定結果 */}
+      <div className="user-main">
+        {modelsError && <div className="glass-note err">モデル取得に失敗: {modelsError}</div>}
 
-      {/* ファイルの場合：3種類の推定モード（結果ボックスの上に配置） */}
-      {result && source === "file" && (
-        <div className="file-modes">
-          <div className="mode-toggle">
-            <button className={mode === "single" ? "on" : ""} onClick={() => setMode("single")}>
-              1打音
-            </button>
-            <button className={mode === "all" ? "on" : ""} onClick={() => setMode("all")}>
-              全打音
-            </button>
-            <button className={mode === "pick" ? "on" : ""} onClick={() => setMode("pick")}>
-              波形から選択
+        <div className="result-glass">
+          {loading ? (
+            <div className="estimating">
+              <span className="spinner" aria-hidden="true" />
+            </div>
+          ) : recording ? (
+            <div className="rec-indicator" role="status" aria-label="録音中">
+              <span />
+              <span />
+              <span />
+              <span />
+              <span />
+            </div>
+          ) : shownValue != null ? (
+            <>
+              <div className="pressure">
+                <span className="pressure-num">{shownValue}</span>
+                <span className="unit">kPa</span>
+              </div>
+              {shownSub && <div className="result-sub">{shownSub}</div>}
+            </>
+          ) : null}
+        </div>
+
+        {error && <div className="glass-note err">{error}</div>}
+
+        {/* ファイル選択時のみ: 打音モード切替 + 波形（控えめ） */}
+        {result && source === "file" && (
+          <div className="file-modes-glass">
+            <div className="glass-seg">
+              <button className={mode === "single" ? "on" : ""} onClick={() => setMode("single")}>
+                1打音
+              </button>
+              <button className={mode === "all" ? "on" : ""} onClick={() => setMode("all")}>
+                全打音平均
+              </button>
+              <button className={mode === "pick" ? "on" : ""} onClick={() => setMode("pick")}>
+                波形から選択
+              </button>
+            </div>
+            {mode === "pick" && result.samples && (
+              <Waveform
+                samples={result.samples}
+                sampleRate={result.sampleRate ?? 22050}
+                peakSeconds={result.peakSeconds ?? []}
+                picked={picked}
+                onPick={setPicked}
+              />
+            )}
+          </div>
+        )}
+
+        {/* 実測値の登録（控えめ・再学習用） */}
+        {result && shownValue != null && (
+          <div className="label-glass">
+            <div className="kpa-field-glass">
+              <input
+                type="number"
+                inputMode="decimal"
+                placeholder="実測値"
+                value={actualKpa}
+                onChange={(e) => setActualKpa(e.target.value)}
+              />
+              <span className="kpa-unit">kPa</span>
+            </div>
+            <button onClick={onSaveLabel} disabled={labelSaving || labelSaved}>
+              {labelSaved ? "保存済 ✓" : labelSaving ? "保存中…" : "保存"}
             </button>
           </div>
-          {mode === "pick" && result.samples && (
-            <Waveform
-              samples={result.samples}
-              sampleRate={result.sampleRate ?? 22050}
-              peakSeconds={result.peakSeconds ?? []}
-              picked={picked}
-              onPick={setPicked}
-            />
-          )}
-        </div>
-      )}
-
-      {/* 推定結果ボックス（常時表示） */}
-      <div className="result-box">
-        <div className={shownValue != null ? "pressure" : "pressure empty"}>
-          {shownValue != null ? shownValue : "—"}
-          <span className="unit"> kPa</span>
-        </div>
-        {shownSub && <div className="result-sub">{shownSub}</div>}
+        )}
+        {labelError && <div className="glass-note err">{labelError}</div>}
       </div>
 
-      {/* 実測値の登録（結果ボックスの下・再学習用） */}
-      {result && shownValue != null && (
-        <div className="label-row">
-          <div className="kpa-field">
-            <input
-              type="number"
-              inputMode="decimal"
-              placeholder="実測値（例: 240）"
-              value={actualKpa}
-              onChange={(e) => setActualKpa(e.target.value)}
-            />
-            <span className="kpa-unit">kPa</span>
+      {/* 下部中央: 録音ボタン（最も目立つ） */}
+      <div className="user-dock">
+        <button
+          className={"record-fab" + (recording ? " recording" : "")}
+          onClick={toggleRecord}
+          disabled={loading}
+          aria-label={recording ? "録音を停止" : "録音する"}
+        >
+          {recording ? <IconStop /> : <IconMic />}
+        </button>
+      </div>
+
+      {/* 設定ポップアップ（透明＋ぼかし、背景もぼかし） */}
+      {settingsOpen && (
+        <div className="modal-overlay" onClick={() => setSettingsOpen(false)}>
+          <div
+            className="modal-glass"
+            role="dialog"
+            aria-modal="true"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="modal-section">
+              <div className="glass-seg">
+                {TIRE_INCHES.map((inch) => (
+                  <button
+                    key={inch}
+                    className={tireInch === inch ? "on" : ""}
+                    onClick={() => onSelectInch(inch)}
+                    disabled={loading}
+                  >
+                    {INCH_LABEL[inch]}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <label className={"ghost-btn modal-file" + (loading ? " disabled" : "")}>
+              <IconFile />
+              ファイルから選択
+              <input
+                type="file"
+                accept="audio/*"
+                onChange={onPickFileUser}
+                disabled={loading}
+                hidden
+              />
+            </label>
+
+            {isDev && (
+              <button
+                className="ghost-btn"
+                onClick={() => {
+                  setSettingsOpen(false);
+                  setView(true);
+                }}
+              >
+                管理者画面へ
+              </button>
+            )}
+
+            <button className="logout-btn" onClick={signOut}>
+              ログアウト
+            </button>
           </div>
-          <button onClick={onSaveLabel} disabled={labelSaving || labelSaved}>
-            {labelSaved ? "保存済 ✓" : labelSaving ? "保存中…" : "保存"}
-          </button>
         </div>
       )}
-      {labelError && <div className="error">{labelError}</div>}
     </div>
   );
 }
